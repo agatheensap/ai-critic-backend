@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
 app.get("/", (req, res) => {
-  res.send("AI Architectural Critic backend is running.");
+  res.send("AI Architectural Critic backend is running in demo mode.");
 });
 
 app.post("/analyze", async (req, res) => {
@@ -21,108 +21,147 @@ app.post("/analyze", async (req, res) => {
       });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({
-        error: "Missing GEMINI_API_KEY on server."
-      });
-    }
+    const profile = pickProfileFromImage(imageBase64);
+    const result = buildResponse(profile);
 
-    const prompt = `
-You are an AI architectural critic.
-
-Analyze the uploaded architectural image.
-
-Return ONLY valid JSON with this exact structure:
-{
-  "calm": 0,
-  "interest": 0,
-  "admiration": 0,
-  "enchantment": 0,
-  "anxiety": 0,
-  "summary": "short paragraph",
-  "suggestions": [
-    "suggestion 1",
-    "suggestion 2",
-    "suggestion 3"
-  ]
-}
-
-Rules:
-- All emotion scores must be integers between 0 and 100.
-- Base the analysis on architectural qualities only:
-  light, materiality, proportions, rhythm, openness, texture, color, scale, geometry, vegetation, human comfort, and visual tension.
-- Keep summary concise.
-- Suggestions must be practical design improvements.
-- Return raw JSON only. No markdown. No explanation outside JSON.
-`;
-
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: getMimeType(imageBase64),
-                    data: getBase64Data(imageBase64)
-                  }
-                }
-              ]
-            }
-          ]
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(500).json({
-        error: "Gemini API error",
-        details: data?.error?.message || "Unknown Gemini error",
-        raw: data
-      });
-    }
-
-    const rawText =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    let parsed;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch (parseError) {
-      return res.status(500).json({
-        error: "The AI response was not valid JSON.",
-        raw: rawText
-      });
-    }
-
-    res.json(parsed);
+    res.json(result);
   } catch (error) {
     console.error("Analyze error:", error);
-
     res.status(500).json({
-      error: "Server error during analysis.",
+      error: "Server error during demo analysis.",
       details: error?.message || "Unknown error"
     });
   }
 });
 
-function getMimeType(dataUrl) {
-  const match = dataUrl.match(/^data:(.*?);base64,/);
-  return match ? match[1] : "image/jpeg";
+function pickProfileFromImage(imageBase64) {
+  const seed = createSeedFromString(imageBase64.slice(0, 500));
+
+  const profiles = [
+    "calm_minimal",
+    "dramatic_monumental",
+    "warm_human",
+    "dense_tense",
+    "poetic_enchanting"
+  ];
+
+  return profiles[seed % profiles.length];
 }
 
-function getBase64Data(dataUrl) {
-  return dataUrl.replace(/^data:.*;base64,/, "");
+function createSeedFromString(str) {
+  let total = 0;
+  for (let i = 0; i < str.length; i++) {
+    total += str.charCodeAt(i);
+  }
+  return total;
+}
+
+function vary(base, seed, amount = 6) {
+  const offset = (seed % (amount * 2 + 1)) - amount;
+  const value = base + offset;
+  return Math.max(0, Math.min(100, value));
+}
+
+function buildResponse(profile) {
+  const seed = Math.floor(Math.random() * 1000);
+
+  switch (profile) {
+    case "calm_minimal":
+      return {
+        calm: vary(82, seed, 8),
+        interest: vary(58, seed + 1, 7),
+        admiration: vary(67, seed + 2, 7),
+        enchantment: vary(49, seed + 3, 6),
+        anxiety: vary(14, seed + 4, 5),
+        summary:
+          "This design feels serene, controlled, and spatially clear. The composition suggests calm through openness, restraint, and visual simplicity.",
+        suggestions: [
+          "Add a stronger focal element to increase visual interest.",
+          "Introduce warmer textures or materials to create more emotional connection.",
+          "Layer natural light and shadow to enrich the spatial atmosphere."
+        ]
+      };
+
+    case "dramatic_monumental":
+      return {
+        calm: vary(28, seed, 7),
+        interest: vary(88, seed + 1, 6),
+        admiration: vary(84, seed + 2, 6),
+        enchantment: vary(66, seed + 3, 7),
+        anxiety: vary(46, seed + 4, 7),
+        summary:
+          "This architecture creates intensity and grandeur through strong form, contrast, and monumentality. It is visually powerful, but may feel emotionally imposing.",
+        suggestions: [
+          "Soften transitions with warmer materials or softer lighting.",
+          "Add human-scale details to improve comfort and accessibility.",
+          "Introduce vegetation or softer edges to reduce emotional tension."
+        ]
+      };
+
+    case "warm_human":
+      return {
+        calm: vary(71, seed, 7),
+        interest: vary(64, seed + 1, 6),
+        admiration: vary(69, seed + 2, 6),
+        enchantment: vary(57, seed + 3, 6),
+        anxiety: vary(18, seed + 4, 5),
+        summary:
+          "The design conveys warmth and usability, with a human-centered atmosphere. It feels accessible, pleasant, and emotionally balanced.",
+        suggestions: [
+          "Strengthen architectural rhythm to create more visual identity.",
+          "Increase contrast in selected zones to raise admiration and focus.",
+          "Use more dramatic lighting moments to enhance enchantment."
+        ]
+      };
+
+    case "dense_tense":
+      return {
+        calm: vary(19, seed, 6),
+        interest: vary(79, seed + 1, 7),
+        admiration: vary(61, seed + 2, 7),
+        enchantment: vary(42, seed + 3, 6),
+        anxiety: vary(68, seed + 4, 8),
+        summary:
+          "This image suggests compression, complexity, and visual tension. The project is stimulating, but may feel crowded or psychologically intense.",
+        suggestions: [
+          "Open up circulation or visual breathing space where possible.",
+          "Simplify material or formal complexity in key areas.",
+          "Introduce clearer hierarchy and softer lighting to reduce anxiety."
+        ]
+      };
+
+    case "poetic_enchanting":
+      return {
+        calm: vary(55, seed, 7),
+        interest: vary(76, seed + 1, 6),
+        admiration: vary(73, seed + 2, 6),
+        enchantment: vary(89, seed + 3, 7),
+        anxiety: vary(21, seed + 4, 5),
+        summary:
+          "This design evokes a poetic and immersive atmosphere. Its emotional strength comes from mood, mystery, and a strong sense of visual storytelling.",
+        suggestions: [
+          "Clarify circulation and functional readability to support the atmosphere.",
+          "Reinforce one or two material themes for greater coherence.",
+          "Balance the poetic mood with more human-scale cues where needed."
+        ]
+      };
+
+    default:
+      return {
+        calm: 50,
+        interest: 50,
+        admiration: 50,
+        enchantment: 50,
+        anxiety: 20,
+        summary:
+          "This architectural proposal presents a balanced emotional reading with moderate calm, visual interest, and expressive potential.",
+        suggestions: [
+          "Develop a clearer emotional hierarchy in the design language.",
+          "Use light, materiality, and scale more intentionally.",
+          "Clarify the user experience through stronger spatial cues."
+        ]
+      };
+  }
 }
 
 app.listen(port, () => {
