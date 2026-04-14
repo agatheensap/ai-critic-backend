@@ -13,7 +13,7 @@ app.get("/", (req, res) => {
 
 app.post("/analyze", async (req, res) => {
   try {
-    const { imageBase64 } = req.body;
+    const { imageBase64, desiredOutcome } = req.body;
 
     if (!imageBase64) {
       return res.status(400).json({
@@ -22,7 +22,7 @@ app.post("/analyze", async (req, res) => {
     }
 
     const profile = pickProfileFromImage(imageBase64);
-    const result = buildResponse(profile);
+    const result = buildResponse(profile, desiredOutcome);
 
     res.json(result);
   } catch (error) {
@@ -62,12 +62,15 @@ function vary(base, seed, amount = 6) {
   return Math.max(0, Math.min(100, value));
 }
 
-function buildResponse(profile) {
+function buildResponse(profile, desiredOutcome = "") {
   const seed = Math.floor(Math.random() * 1000);
+  const goal = parseDesiredOutcome(desiredOutcome);
+
+  let response;
 
   switch (profile) {
     case "calm_minimal":
-      return {
+      response = {
         calm: vary(82, seed, 8),
         interest: vary(58, seed + 1, 7),
         admiration: vary(67, seed + 2, 7),
@@ -81,9 +84,10 @@ function buildResponse(profile) {
           "Layer natural light and shadow to enrich the spatial atmosphere."
         ]
       };
+      break;
 
     case "dramatic_monumental":
-      return {
+      response = {
         calm: vary(28, seed, 7),
         interest: vary(88, seed + 1, 6),
         admiration: vary(84, seed + 2, 6),
@@ -97,9 +101,10 @@ function buildResponse(profile) {
           "Introduce vegetation or softer edges to reduce emotional tension."
         ]
       };
+      break;
 
     case "warm_human":
-      return {
+      response = {
         calm: vary(71, seed, 7),
         interest: vary(64, seed + 1, 6),
         admiration: vary(69, seed + 2, 6),
@@ -113,9 +118,10 @@ function buildResponse(profile) {
           "Use more dramatic lighting moments to enhance enchantment."
         ]
       };
+      break;
 
     case "dense_tense":
-      return {
+      response = {
         calm: vary(19, seed, 6),
         interest: vary(79, seed + 1, 7),
         admiration: vary(61, seed + 2, 7),
@@ -129,9 +135,10 @@ function buildResponse(profile) {
           "Introduce clearer hierarchy and softer lighting to reduce anxiety."
         ]
       };
+      break;
 
     case "poetic_enchanting":
-      return {
+      response = {
         calm: vary(55, seed, 7),
         interest: vary(76, seed + 1, 6),
         admiration: vary(73, seed + 2, 6),
@@ -145,9 +152,10 @@ function buildResponse(profile) {
           "Balance the poetic mood with more human-scale cues where needed."
         ]
       };
+      break;
 
     default:
-      return {
+      response = {
         calm: 50,
         interest: 50,
         admiration: 50,
@@ -162,6 +170,105 @@ function buildResponse(profile) {
         ]
       };
   }
+
+  const goalResponse = buildGoalResponse(goal, response);
+  const goalSuggestions = buildGoalSuggestions(goal);
+
+  return {
+    ...response,
+    goalResponse,
+    suggestions: [...response.suggestions, ...goalSuggestions]
+  };
+}
+
+function parseDesiredOutcome(text = "") {
+  const lower = text.toLowerCase();
+
+  return {
+    moreCalm: lower.includes("more calm") || lower.includes("plus de calme") || lower.includes("calmer"),
+    lessAnxiety: lower.includes("less anxiety") || lower.includes("moins d'anxiété") || lower.includes("less stress"),
+    moreAdmiration: lower.includes("more admiration") || lower.includes("plus d'admiration"),
+    moreEnchantment: lower.includes("more enchantment") || lower.includes("plus d'enchantement") || lower.includes("more magic"),
+    moreInterest: lower.includes("more interest") || lower.includes("plus d'intérêt") || lower.includes("more curiosity"),
+    hasGoal: lower.trim().length > 0,
+    raw: text
+  };
+}
+
+function buildGoalResponse(goal, response) {
+  if (!goal.hasGoal) {
+    return "No specific emotional goal was provided. The suggestions above respond to the current emotional profile of the project.";
+  }
+
+  const messages = [];
+
+  if (goal.moreCalm) {
+    if (response.calm >= 65) {
+      messages.push("The design already has a relatively calm base, so the next step is to reinforce softness, continuity, and visual breathing space.");
+    } else {
+      messages.push("To move toward more calm, the design should reduce visual tension and create a more legible, breathable spatial composition.");
+    }
+  }
+
+  if (goal.lessAnxiety) {
+    if (response.anxiety <= 25) {
+      messages.push("Anxiety is already fairly low, so refinement should focus on preserving comfort while improving clarity and warmth.");
+    } else {
+      messages.push("To reduce anxiety, the project should soften contrast, simplify dense areas, and improve human-scale comfort cues.");
+    }
+  }
+
+  if (goal.moreAdmiration) {
+    messages.push("To increase admiration, the design needs a stronger sense of intention, hierarchy, and memorable architectural expression.");
+  }
+
+  if (goal.moreEnchantment) {
+    messages.push("To create more enchantment, the project should develop atmosphere through light, material mood, and spatial storytelling.");
+  }
+
+  if (goal.moreInterest) {
+    messages.push("To raise interest, the design should introduce richer focal points, rhythm changes, or moments of surprise.");
+  }
+
+  if (messages.length === 0) {
+    return `The desired emotional outcome is "${goal.raw}". The platform suggests refining materiality, light, scale, and spatial hierarchy to better align the design with that intention.`;
+  }
+
+  return messages.join(" ");
+}
+
+function buildGoalSuggestions(goal) {
+  const extra = [];
+
+  if (goal.moreCalm) {
+    extra.push("Use fewer competing visual elements and strengthen spatial clarity to increase calm.");
+  }
+
+  if (goal.lessAnxiety) {
+    extra.push("Reduce harsh contrast and introduce more human-scale transitions to lower anxiety.");
+  }
+
+  if (goal.moreAdmiration) {
+    extra.push("Create one or two signature architectural moments to increase admiration.");
+  }
+
+  if (goal.moreEnchantment) {
+    extra.push("Use layered lighting, shadow, and material depth to increase enchantment.");
+  }
+
+  if (goal.moreInterest) {
+    extra.push("Add contrast, rhythm shifts, or focal surprises to make the project more engaging.");
+  }
+
+  if (!goal.hasGoal) {
+    return [];
+  }
+
+  if (extra.length === 0) {
+    extra.push("Align the design language more clearly with the desired emotional direction stated by the user.");
+  }
+
+  return extra;
 }
 
 app.listen(port, () => {
