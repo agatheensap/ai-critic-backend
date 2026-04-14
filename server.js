@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import PDFDocument from "pdfkit";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,6 +30,163 @@ app.post("/analyze", async (req, res) => {
     console.error("Analyze error:", error);
     res.status(500).json({
       error: "Server error during demo analysis.",
+      details: error?.message || "Unknown error"
+    });
+  }
+});
+
+app.post("/report", async (req, res) => {
+  try {
+    const {
+      calm = 0,
+      interest = 0,
+      admiration = 0,
+      enchantment = 0,
+      anxiety = 0,
+      summary = "",
+      goalResponse = "",
+      suggestions = [],
+      desiredOutcome = ""
+    } = req.body;
+
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: 50
+    });
+
+    const filename = "ai-architectural-critic-report.pdf";
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    doc.pipe(res);
+
+    doc
+      .fontSize(24)
+      .fillColor("#111111")
+      .text("AI Architectural Critic", { align: "left" });
+
+    doc
+      .moveDown(0.3)
+      .fontSize(11)
+      .fillColor("#666666")
+      .text("Emotional Analysis Report", { align: "left" });
+
+    doc.moveDown(1.2);
+
+    doc
+      .fontSize(14)
+      .fillColor("#111111")
+      .text("Desired Emotional Outcome");
+
+    doc
+      .moveDown(0.3)
+      .fontSize(11)
+      .fillColor("#333333")
+      .text(
+        desiredOutcome && desiredOutcome.trim().length > 0
+          ? desiredOutcome
+          : "No specific emotional goal provided."
+      );
+
+    doc.moveDown(1);
+
+    doc
+      .fontSize(14)
+      .fillColor("#111111")
+      .text("Emotional Scores");
+
+    doc.moveDown(0.5);
+
+    const scores = [
+      ["Calm", calm],
+      ["Interest", interest],
+      ["Admiration", admiration],
+      ["Enchantment", enchantment],
+      ["Anxiety", anxiety]
+    ];
+
+    scores.forEach(([label, value]) => {
+      doc
+        .fontSize(11)
+        .fillColor("#333333")
+        .text(`${label}: ${value}%`);
+    });
+
+    doc.moveDown(1);
+
+    doc
+      .fontSize(14)
+      .fillColor("#111111")
+      .text("Summary");
+
+    doc
+      .moveDown(0.3)
+      .fontSize(11)
+      .fillColor("#333333")
+      .text(summary || "No summary available.", {
+        align: "left",
+        lineGap: 3
+      });
+
+    doc.moveDown(1);
+
+    doc
+      .fontSize(14)
+      .fillColor("#111111")
+      .text("Goal-Oriented Interpretation");
+
+    doc
+      .moveDown(0.3)
+      .fontSize(11)
+      .fillColor("#333333")
+      .text(goalResponse || "No goal-oriented interpretation available.", {
+        align: "left",
+        lineGap: 3
+      });
+
+    doc.moveDown(1);
+
+    doc
+      .fontSize(14)
+      .fillColor("#111111")
+      .text("Design Suggestions");
+
+    doc.moveDown(0.4);
+
+    if (Array.isArray(suggestions) && suggestions.length > 0) {
+      suggestions.forEach((item, index) => {
+        doc
+          .fontSize(11)
+          .fillColor("#333333")
+          .text(`${index + 1}. ${item}`, {
+            align: "left",
+            lineGap: 3
+          });
+        doc.moveDown(0.35);
+      });
+    } else {
+      doc
+        .fontSize(11)
+        .fillColor("#333333")
+        .text("No suggestions available.");
+    }
+
+    doc.moveDown(1.2);
+
+    doc
+      .fontSize(9)
+      .fillColor("#777777")
+      .text(
+        "Prototype mode - report generated from the current demonstration version of AI Architectural Critic.",
+        { align: "left" }
+      );
+
+    doc.end();
+  } catch (error) {
+    console.error("PDF report error:", error);
+    res.status(500).json({
+      error: "Server error during PDF generation.",
       details: error?.message || "Unknown error"
     });
   }
