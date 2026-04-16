@@ -205,94 +205,113 @@ function buildResponse(profile, desiredOutcome = "", seed = 0) {
 
 function buildBaseProfile(profile, seed) {
   switch (profile) {
-    case "calm_minimal":
+
+    case "minimal_calm":
       return {
-        profile,
-        calm: vary(82, seed + 1, 8),
-        interest: vary(56, seed + 2, 8),
-        admiration: vary(66, seed + 3, 7),
-        enchantment: vary(44, seed + 4, 8),
-        anxiety: vary(14, seed + 5, 5)
+        calm: vary(85, seed, 6),
+        joy: vary(45, seed + 1, 8),
+        inspiration: vary(60, seed + 2, 7),
+        security: vary(80, seed + 3, 6),
+        comfort: vary(78, seed + 4, 6),
+        enchantment: vary(40, seed + 5, 8),
+        serenity: vary(88, seed + 6, 5),
+        admiration: vary(65, seed + 7, 7)
       };
 
-    case "dramatic_monumental":
+    case "playful_dynamic":
       return {
-        profile,
-        calm: vary(28, seed + 1, 7),
-        interest: vary(89, seed + 2, 6),
-        admiration: vary(84, seed + 3, 7),
-        enchantment: vary(65, seed + 4, 8),
-        anxiety: vary(48, seed + 5, 7)
+        calm: vary(40, seed, 7),
+        joy: vary(85, seed + 1, 5),
+        inspiration: vary(75, seed + 2, 6),
+        security: vary(45, seed + 3, 7),
+        comfort: vary(55, seed + 4, 6),
+        enchantment: vary(70, seed + 5, 7),
+        serenity: vary(35, seed + 6, 7),
+        admiration: vary(72, seed + 7, 6)
       };
 
-    case "warm_human":
+    case "monumental_inspiring":
       return {
-        profile,
-        calm: vary(71, seed + 1, 7),
-        interest: vary(66, seed + 2, 7),
-        admiration: vary(68, seed + 3, 6),
-        enchantment: vary(55, seed + 4, 7),
-        anxiety: vary(18, seed + 5, 5)
+        calm: vary(50, seed, 7),
+        joy: vary(45, seed + 1, 6),
+        inspiration: vary(90, seed + 2, 4),
+        security: vary(65, seed + 3, 7),
+        comfort: vary(50, seed + 4, 7),
+        enchantment: vary(78, seed + 5, 6),
+        serenity: vary(40, seed + 6, 7),
+        admiration: vary(92, seed + 7, 4)
       };
 
-    case "dense_tense":
+    case "safe_comforting":
       return {
-        profile,
-        calm: vary(18, seed + 1, 6),
-        interest: vary(80, seed + 2, 7),
-        admiration: vary(60, seed + 3, 8),
-        enchantment: vary(40, seed + 4, 7),
-        anxiety: vary(70, seed + 5, 8)
+        calm: vary(75, seed, 6),
+        joy: vary(55, seed + 1, 6),
+        inspiration: vary(50, seed + 2, 7),
+        security: vary(90, seed + 3, 4),
+        comfort: vary(88, seed + 4, 5),
+        enchantment: vary(42, seed + 5, 7),
+        serenity: vary(72, seed + 6, 6),
+        admiration: vary(58, seed + 7, 7)
+      };
+
+    case "luxury_admiring":
+      return {
+        calm: vary(68, seed, 6),
+        joy: vary(60, seed + 1, 6),
+        inspiration: vary(70, seed + 2, 6),
+        security: vary(72, seed + 3, 6),
+        comfort: vary(74, seed + 4, 6),
+        enchantment: vary(82, seed + 5, 5),
+        serenity: vary(65, seed + 6, 6),
+        admiration: vary(95, seed + 7, 3)
       };
 
     case "poetic_enchanting":
       return {
-        profile,
-        calm: vary(54, seed + 1, 7),
-        interest: vary(76, seed + 2, 6),
-        admiration: vary(73, seed + 3, 6),
-        enchantment: vary(89, seed + 4, 7),
-        anxiety: vary(22, seed + 5, 5)
+        calm: vary(60, seed, 6),
+        joy: vary(65, seed + 1, 6),
+        inspiration: vary(78, seed + 2, 5),
+        security: vary(50, seed + 3, 7),
+        comfort: vary(55, seed + 4, 7),
+        enchantment: vary(95, seed + 5, 3),
+        serenity: vary(68, seed + 6, 6),
+        admiration: vary(80, seed + 7, 5)
       };
 
-    case "bright_civic":
+    case "zen_serenity":
       return {
-        profile,
-        calm: vary(63, seed + 1, 7),
-        interest: vary(72, seed + 2, 7),
-        admiration: vary(78, seed + 3, 6),
-        enchantment: vary(52, seed + 4, 7),
-        anxiety: vary(16, seed + 5, 5)
+        calm: vary(92, seed, 3),
+        joy: vary(50, seed + 1, 6),
+        inspiration: vary(65, seed + 2, 6),
+        security: vary(85, seed + 3, 5),
+        comfort: vary(80, seed + 4, 5),
+        enchantment: vary(55, seed + 5, 6),
+        serenity: vary(95, seed + 6, 3),
+        admiration: vary(70, seed + 7, 5)
       };
 
-    case "luxury_refined":
+    case "balanced_human":
       return {
-        profile,
-        calm: vary(67, seed + 1, 7),
-        interest: vary(64, seed + 2, 6),
-        admiration: vary(86, seed + 3, 6),
-        enchantment: vary(70, seed + 4, 7),
-        anxiety: vary(17, seed + 5, 5)
-      };
-
-    case "experimental_dynamic":
-      return {
-        profile,
-        calm: vary(32, seed + 1, 8),
-        interest: vary(91, seed + 2, 5),
-        admiration: vary(74, seed + 3, 7),
-        enchantment: vary(62, seed + 4, 8),
-        anxiety: vary(43, seed + 5, 7)
+        calm: vary(70, seed, 6),
+        joy: vary(65, seed + 1, 6),
+        inspiration: vary(68, seed + 2, 6),
+        security: vary(75, seed + 3, 6),
+        comfort: vary(78, seed + 4, 6),
+        enchantment: vary(60, seed + 5, 6),
+        serenity: vary(72, seed + 6, 6),
+        admiration: vary(70, seed + 7, 6)
       };
 
     default:
       return {
-        profile: "balanced",
-        calm: 50,
-        interest: 50,
-        admiration: 50,
-        enchantment: 50,
-        anxiety: 20
+        calm: 60,
+        joy: 60,
+        inspiration: 60,
+        security: 60,
+        comfort: 60,
+        enchantment: 60,
+        serenity: 60,
+        admiration: 60
       };
   }
 }
