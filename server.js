@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
 app.get("/", (req, res) => {
-  res.send("AI Architectural Critic backend is running with render/plan modes.");
+  res.send("AI Architectural Critic backend is running with render, plan, and section modes.");
 });
 
 app.post("/analyze", async (req, res) => {
@@ -23,10 +23,15 @@ app.post("/analyze", async (req, res) => {
     }
 
     const features = sanitizeFeatures(visualFeatures);
-    const result =
-      imageType === "plan"
-        ? buildPlanResponse(features, desiredOutcome)
-        : buildRenderResponse(features, desiredOutcome);
+
+    let result;
+    if (imageType === "plan") {
+      result = buildPlanResponse(features, desiredOutcome);
+    } else if (imageType === "section") {
+      result = buildSectionResponse(features, desiredOutcome);
+    } else {
+      result = buildRenderResponse(features, desiredOutcome);
+    }
 
     res.json({
       ...result,
@@ -79,7 +84,15 @@ app.post("/report", async (req, res) => {
     doc.moveDown(1.2);
     doc.fontSize(14).fillColor("#111111").text("Image Type");
     doc.moveDown(0.3);
-    doc.fontSize(11).fillColor("#333333").text(imageType === "plan" ? "Plan" : "Render / Photo");
+
+    const imageTypeLabel =
+      imageType === "plan"
+        ? "Plan"
+        : imageType === "section"
+          ? "Section / Elevation"
+          : "Render / Photo";
+
+    doc.fontSize(11).fillColor("#333333").text(imageTypeLabel);
 
     doc.moveDown(1);
     doc.fontSize(14).fillColor("#111111").text("Desired Emotional Outcome");
@@ -152,7 +165,7 @@ app.post("/report", async (req, res) => {
       .fontSize(9)
       .fillColor("#777777")
       .text(
-        "Prototype mode - emotional analysis is based on simple visual feature extraction and separate interpretation modes for renders and plans."
+        "Prototype mode - emotional analysis is based on simple visual feature extraction and separate interpretation modes for renders, plans, and sections/elevations."
       );
 
     doc.end();
@@ -249,7 +262,7 @@ function buildRenderResponse(features, desiredOutcome = "") {
 
   return {
     ...emotions,
-    summary: buildRenderSummary(features, emotions),
+    summary: buildRenderSummary(emotions),
     goalResponse: buildGoalResponse(desiredOutcome, emotions),
     suggestions: buildRenderSuggestions(features, emotions, desiredOutcome)
   };
@@ -271,7 +284,7 @@ function buildPlanResponse(features, desiredOutcome = "") {
     0.15 * warmth +
     0.10 * saturation +
     0.20 * (100 - contrast) +
-    0.40 * 50,
+    20,
     0, 100
   );
 
@@ -280,7 +293,7 @@ function buildPlanResponse(features, desiredOutcome = "") {
     0.40 * contrast +
     0.10 * warmth +
     0.10 * saturation +
-    0.20 * 60,
+    12,
     0, 100
   );
 
@@ -305,7 +318,7 @@ function buildPlanResponse(features, desiredOutcome = "") {
     0.25 * contrast +
     0.05 * warmth +
     0.05 * saturation +
-    0.55 * 45,
+    18,
     0, 100
   );
 
@@ -322,7 +335,7 @@ function buildPlanResponse(features, desiredOutcome = "") {
     0.40 * contrast +
     0.05 * warmth +
     0.05 * saturation +
-    0.30 * 65,
+    28,
     0, 100
   );
 
@@ -336,19 +349,113 @@ function buildPlanResponse(features, desiredOutcome = "") {
   };
 }
 
-function buildRenderSummary(features, emotions) {
+function buildSectionResponse(features, desiredOutcome = "") {
+  const { brightness, contrast, warmth, saturation } = features;
+
+  const calm = clamp(
+    0.28 * brightness +
+    0.22 * (100 - contrast) +
+    0.10 * warmth +
+    0.10 * (100 - saturation) +
+    10,
+    0, 100
+  );
+
+  const joy = clamp(
+    0.18 * brightness +
+    0.20 * warmth +
+    0.12 * saturation +
+    12,
+    0, 100
+  );
+
+  const inspiration = clamp(
+    0.18 * brightness +
+    0.38 * contrast +
+    0.08 * warmth +
+    0.08 * saturation +
+    22,
+    0, 100
+  );
+
+  const security = clamp(
+    0.25 * brightness +
+    0.28 * (100 - contrast) +
+    0.08 * warmth +
+    0.10 * (100 - saturation) +
+    18,
+    0, 100
+  );
+
+  const comfort = clamp(
+    0.18 * brightness +
+    0.20 * warmth +
+    0.20 * (100 - contrast) +
+    0.10 * (100 - saturation) +
+    18,
+    0, 100
+  );
+
+  const enchantment = clamp(
+    0.12 * brightness +
+    0.30 * contrast +
+    0.10 * warmth +
+    0.08 * saturation +
+    22,
+    0, 100
+  );
+
+  const serenity = clamp(
+    0.28 * brightness +
+    0.25 * (100 - contrast) +
+    0.06 * warmth +
+    0.08 * (100 - saturation) +
+    14,
+    0, 100
+  );
+
+  const admiration = clamp(
+    0.18 * brightness +
+    0.42 * contrast +
+    0.06 * warmth +
+    0.06 * saturation +
+    24,
+    0, 100
+  );
+
+  const emotions = { calm, joy, inspiration, security, comfort, enchantment, serenity, admiration };
+
+  return {
+    ...emotions,
+    summary: buildSectionSummary(features, emotions),
+    goalResponse: buildGoalResponse(desiredOutcome, emotions),
+    suggestions: buildSectionSuggestions(features, emotions, desiredOutcome)
+  };
+}
+
+function buildRenderSummary(emotions) {
   const topEmotions = top3(emotions);
-  return `This render or photograph suggests a sensory atmosphere shaped by light, contrast, warmth, and color intensity. The strongest emotional impressions are ${joinNatural(topEmotions)}.`;
+  return `This render or photograph is interpreted as an atmospheric image shaped by light, contrast, warmth, and color intensity. The strongest emotional impressions are ${joinNatural(topEmotions)}.`;
 }
 
 function buildPlanSummary(features, emotions) {
   const topEmotions = top3(emotions);
   const clarityText =
-    features.contrast < 35 ? "a very soft and legible graphic field"
-    : features.contrast > 70 ? "a dense and highly contrasted graphic reading"
+    features.contrast < 35 ? "a soft and highly legible graphic field"
+    : features.contrast > 70 ? "a dense and strongly contrasted graphic composition"
     : "a relatively balanced level of graphic definition";
 
-  return `This plan is interpreted primarily as a graphic and spatial diagram rather than an atmospheric image. It suggests ${clarityText}, and the strongest emotional impressions are ${joinNatural(topEmotions)}.`;
+  return `This plan is interpreted primarily as a spatial diagram rather than an atmospheric scene. It suggests ${clarityText}, and the strongest emotional impressions are ${joinNatural(topEmotions)}.`;
+}
+
+function buildSectionSummary(features, emotions) {
+  const topEmotions = top3(emotions);
+  const verticalText =
+    features.contrast > 65
+      ? "a strong sense of section depth, hierarchy, and structural presence"
+      : "a relatively measured sectional reading with controlled vertical rhythm";
+
+  return `This section or elevation is interpreted as a composition of structure, proportion, rhythm, and vertical relationships. It suggests ${verticalText}, and the strongest emotional impressions are ${joinNatural(topEmotions)}.`;
 }
 
 function buildGoalResponse(desiredOutcome = "", emotions) {
@@ -360,8 +467,8 @@ function buildGoalResponse(desiredOutcome = "", emotions) {
 
   const messages = [];
 
-  if (goal.moreCalm) messages.push(emotions.calm >= 70 ? "The project already reads as relatively calm, so refinement should preserve clarity while deepening control." : "To increase calm, the project should reduce visual friction and simplify competing signals.");
-  if (goal.moreJoy) messages.push("To increase joy, the project should feel brighter, warmer, and more open to positive experiential moments.");
+  if (goal.moreCalm) messages.push(emotions.calm >= 70 ? "The project already reads as relatively calm, so refinement should preserve clarity while deepening control." : "To increase calm, the design should reduce visual friction and simplify competing signals.");
+  if (goal.moreJoy) messages.push("To increase joy, the design should feel brighter, warmer, and more open to positive experiential moments.");
   if (goal.moreInspiration) messages.push("To increase inspiration, the design should strengthen conceptual boldness, contrast, or memorable spatial ideas.");
   if (goal.moreSecurity) messages.push("To reinforce security, the design should become more legible, stable, and reassuring.");
   if (goal.moreComfort) messages.push("To create more comfort, the atmosphere should feel softer, clearer, and more human-centered.");
@@ -389,9 +496,7 @@ function buildRenderSuggestions(features, emotions, desiredOutcome = "") {
   if (features.saturation < 35) suggestions.push("A restrained palette is effective, but one or two richer accents could improve inspiration and admiration.");
   if (features.saturation > 70) suggestions.push("Reduce excess chromatic intensity in selected zones to preserve calm and serenity.");
 
-  const weakest = weakestEmotion(emotions);
-  suggestions.push(weakestSuggestion(weakest));
-
+  suggestions.push(weakestSuggestion(weakestEmotion(emotions)));
   addGoalSuggestions(suggestions, goal);
 
   return uniqueList(suggestions).slice(0, 6);
@@ -409,10 +514,25 @@ function buildPlanSuggestions(features, emotions, desiredOutcome = "") {
 
   suggestions.push("Clarify the relationship between circulation, rooms, and thresholds so the plan feels more intentional.");
   suggestions.push("Strengthen the graphic hierarchy between structure, enclosure, and movement.");
+  suggestions.push(weakestSuggestion(weakestEmotion(emotions)));
+  addGoalSuggestions(suggestions, goal);
 
-  const weakest = weakestEmotion(emotions);
-  suggestions.push(weakestSuggestion(weakest));
+  return uniqueList(suggestions).slice(0, 6);
+}
 
+function buildSectionSuggestions(features, emotions, desiredOutcome = "") {
+  const suggestions = [];
+  const goal = parseDesiredOutcome(desiredOutcome);
+
+  if (features.contrast > 70) suggestions.push("Reduce line competition and strengthen hierarchy so the section or elevation reads more clearly.");
+  if (features.contrast < 30) suggestions.push("Introduce stronger graphic hierarchy to distinguish primary structure from secondary information.");
+  if (features.brightness < 45) suggestions.push("Clarify poche, cut elements, or tonal depth so the sectional reading becomes more legible.");
+  if (features.saturation > 20) suggestions.push("Use color sparingly so vertical relationships and structural rhythm remain dominant.");
+
+  suggestions.push("Strengthen the relationship between structure, envelope, and spatial sequence so the drawing feels more resolved.");
+  suggestions.push("Use hierarchy to distinguish what is cut, what is seen beyond, and what defines the main compositional rhythm.");
+  suggestions.push("Clarify the vertical order of spaces so the section or elevation communicates proportion more confidently.");
+  suggestions.push(weakestSuggestion(weakestEmotion(emotions)));
   addGoalSuggestions(suggestions, goal);
 
   return uniqueList(suggestions).slice(0, 6);
