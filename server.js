@@ -9,12 +9,12 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
 app.get("/", (req, res) => {
-  res.send("AI Architectural Critic backend is running in advanced demo mode.");
+  res.send("AI Architectural Critic backend is running in advanced visual-analysis demo mode.");
 });
 
 app.post("/analyze", async (req, res) => {
   try {
-    const { imageBase64, desiredOutcome } = req.body;
+    const { imageBase64, desiredOutcome, visualFeatures } = req.body;
 
     if (!imageBase64) {
       return res.status(400).json({
@@ -22,15 +22,17 @@ app.post("/analyze", async (req, res) => {
       });
     }
 
-    const seed = createSeedFromString(imageBase64.slice(0, 1200));
-    const profile = pickProfileFromSeed(seed);
-    const result = buildResponse(profile, desiredOutcome, seed);
+    const features = sanitizeFeatures(visualFeatures);
+    const result = buildResponseFromFeatures(features, desiredOutcome);
 
-    res.json(result);
+    res.json({
+      ...result,
+      visualFeatures: features
+    });
   } catch (error) {
     console.error("Analyze error:", error);
     res.status(500).json({
-      error: "Server error during demo analysis.",
+      error: "Server error during visual demo analysis.",
       details: error?.message || "Unknown error"
     });
   }
@@ -40,10 +42,13 @@ app.post("/report", async (req, res) => {
   try {
     const {
       calm = 0,
-      interest = 0,
-      admiration = 0,
+      joy = 0,
+      inspiration = 0,
+      security = 0,
+      comfort = 0,
       enchantment = 0,
-      anxiety = 0,
+      serenity = 0,
+      admiration = 0,
       summary = "",
       goalResponse = "",
       suggestions = [],
@@ -84,10 +89,13 @@ app.post("/report", async (req, res) => {
 
     const scores = [
       ["Calm", calm],
-      ["Interest", interest],
-      ["Admiration", admiration],
+      ["Joy", joy],
+      ["Inspiration", inspiration],
+      ["Security", security],
+      ["Comfort", comfort],
       ["Enchantment", enchantment],
-      ["Anxiety", anxiety]
+      ["Serenity", serenity],
+      ["Admiration", admiration]
     ];
 
     scores.forEach(([label, value]) => {
@@ -134,7 +142,7 @@ app.post("/report", async (req, res) => {
       .fontSize(9)
       .fillColor("#777777")
       .text(
-        "Prototype mode - report generated from the advanced demonstration version of AI Architectural Critic."
+        "Prototype mode - emotional analysis is based on simple visual feature extraction and concept demonstration logic."
       );
 
     doc.end();
@@ -147,289 +155,137 @@ app.post("/report", async (req, res) => {
   }
 });
 
-function createSeedFromString(str) {
-  let total = 0;
-  for (let i = 0; i < str.length; i++) {
-    total = (total + str.charCodeAt(i) * (i + 1)) % 1000000;
-  }
-  return total;
+function sanitizeFeatures(features = {}) {
+  return {
+    brightness: clamp(features.brightness ?? 50, 0, 100),
+    contrast: clamp(features.contrast ?? 50, 0, 100),
+    warmth: clamp(features.warmth ?? 50, 0, 100),
+    saturation: clamp(features.saturation ?? 50, 0, 100)
+  };
 }
 
-function vary(base, seed, amount = 6) {
-  const offset = (seed % (amount * 2 + 1)) - amount;
-  const value = base + offset;
-  return Math.max(0, Math.min(100, value));
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
-function choice(arr, seed) {
-  return arr[seed % arr.length];
+function buildResponseFromFeatures(features, desiredOutcome = "") {
+  const { brightness, contrast, warmth, saturation } = features;
+
+  const calm = clamp(
+    0.35 * brightness +
+    0.30 * (100 - contrast) +
+    0.20 * warmth +
+    0.15 * (100 - saturation),
+    0, 100
+  );
+
+  const joy = clamp(
+    0.30 * brightness +
+    0.30 * warmth +
+    0.25 * saturation +
+    0.15 * (100 - contrast),
+    0, 100
+  );
+
+  const inspiration = clamp(
+    0.20 * brightness +
+    0.35 * contrast +
+    0.20 * saturation +
+    0.25 * warmth,
+    0, 100
+  );
+
+  const security = clamp(
+    0.30 * brightness +
+    0.15 * warmth +
+    0.35 * (100 - contrast) +
+    0.20 * (100 - saturation),
+    0, 100
+  );
+
+  const comfort = clamp(
+    0.25 * brightness +
+    0.30 * warmth +
+    0.25 * (100 - contrast) +
+    0.20 * (100 - saturation),
+    0, 100
+  );
+
+  const enchantment = clamp(
+    0.15 * brightness +
+    0.30 * contrast +
+    0.25 * saturation +
+    0.30 * warmth,
+    0, 100
+  );
+
+  const serenity = clamp(
+    0.40 * brightness +
+    0.35 * (100 - contrast) +
+    0.15 * warmth +
+    0.10 * (100 - saturation),
+    0, 100
+  );
+
+  const admiration = clamp(
+    0.20 * brightness +
+    0.35 * contrast +
+    0.20 * warmth +
+    0.25 * saturation,
+    0, 100
+  );
+
+  const emotions = {
+    calm,
+    joy,
+    inspiration,
+    security,
+    comfort,
+    enchantment,
+    serenity,
+    admiration
+  };
+
+  return {
+    ...emotions,
+    summary: buildSummary(features, emotions),
+    goalResponse: buildGoalResponse(desiredOutcome, emotions),
+    suggestions: buildSuggestions(features, emotions, desiredOutcome)
+  };
 }
 
-function uniqueList(items) {
-  return [...new Set(items)];
+function buildSummary(features, emotions) {
+  const topEmotions = Object.entries(emotions)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  const brightnessText =
+    features.brightness >= 70 ? "high light presence"
+    : features.brightness <= 35 ? "a relatively dark atmosphere"
+    : "a moderate light balance";
+
+  const contrastText =
+    features.contrast >= 70 ? "strong contrast and visual intensity"
+    : features.contrast <= 35 ? "soft contrast and visual continuity"
+    : "a measured contrast level";
+
+  const warmthText =
+    features.warmth >= 60 ? "a warm tonal atmosphere"
+    : features.warmth <= 40 ? "a cooler chromatic feeling"
+    : "a relatively neutral tonal balance";
+
+  const saturationText =
+    features.saturation >= 65 ? "a vivid visual expression"
+    : features.saturation <= 35 ? "a restrained palette"
+    : "a moderate level of color intensity";
+
+  return `This image suggests ${brightnessText}, ${contrastText}, ${warmthText}, and ${saturationText}. As a result, the strongest emotional impressions are ${joinNatural(topEmotions)}.`;
 }
 
-function pickProfileFromSeed(seed) {
-  const profiles = [
-    "calm_minimal",
-    "dramatic_monumental",
-    "warm_human",
-    "dense_tense",
-    "poetic_enchanting",
-    "bright_civic",
-    "luxury_refined",
-    "experimental_dynamic"
-  ];
-
-  return profiles[seed % profiles.length];
-}
-
-function buildResponse(profile, desiredOutcome = "", seed = 0) {
+function buildGoalResponse(desiredOutcome = "", emotions) {
   const goal = parseDesiredOutcome(desiredOutcome);
-  const base = buildBaseProfile(profile, seed);
-  const summary = buildDynamicSummary(profile, base, seed);
-  const goalResponse = buildGoalResponse(goal, base, seed);
-  const suggestions = buildDynamicSuggestions(profile, base, goal, seed);
 
-  return {
-    calm: base.calm,
-    interest: base.interest,
-    admiration: base.admiration,
-    enchantment: base.enchantment,
-    anxiety: base.anxiety,
-    summary,
-    goalResponse,
-    suggestions
-  };
-}
-
-function buildBaseProfile(profile, seed) {
-  switch (profile) {
-
-    case "minimal_calm":
-      return {
-        calm: vary(85, seed, 6),
-        joy: vary(45, seed + 1, 8),
-        inspiration: vary(60, seed + 2, 7),
-        security: vary(80, seed + 3, 6),
-        comfort: vary(78, seed + 4, 6),
-        enchantment: vary(40, seed + 5, 8),
-        serenity: vary(88, seed + 6, 5),
-        admiration: vary(65, seed + 7, 7)
-      };
-
-    case "playful_dynamic":
-      return {
-        calm: vary(40, seed, 7),
-        joy: vary(85, seed + 1, 5),
-        inspiration: vary(75, seed + 2, 6),
-        security: vary(45, seed + 3, 7),
-        comfort: vary(55, seed + 4, 6),
-        enchantment: vary(70, seed + 5, 7),
-        serenity: vary(35, seed + 6, 7),
-        admiration: vary(72, seed + 7, 6)
-      };
-
-    case "monumental_inspiring":
-      return {
-        calm: vary(50, seed, 7),
-        joy: vary(45, seed + 1, 6),
-        inspiration: vary(90, seed + 2, 4),
-        security: vary(65, seed + 3, 7),
-        comfort: vary(50, seed + 4, 7),
-        enchantment: vary(78, seed + 5, 6),
-        serenity: vary(40, seed + 6, 7),
-        admiration: vary(92, seed + 7, 4)
-      };
-
-    case "safe_comforting":
-      return {
-        calm: vary(75, seed, 6),
-        joy: vary(55, seed + 1, 6),
-        inspiration: vary(50, seed + 2, 7),
-        security: vary(90, seed + 3, 4),
-        comfort: vary(88, seed + 4, 5),
-        enchantment: vary(42, seed + 5, 7),
-        serenity: vary(72, seed + 6, 6),
-        admiration: vary(58, seed + 7, 7)
-      };
-
-    case "luxury_admiring":
-      return {
-        calm: vary(68, seed, 6),
-        joy: vary(60, seed + 1, 6),
-        inspiration: vary(70, seed + 2, 6),
-        security: vary(72, seed + 3, 6),
-        comfort: vary(74, seed + 4, 6),
-        enchantment: vary(82, seed + 5, 5),
-        serenity: vary(65, seed + 6, 6),
-        admiration: vary(95, seed + 7, 3)
-      };
-
-    case "poetic_enchanting":
-      return {
-        calm: vary(60, seed, 6),
-        joy: vary(65, seed + 1, 6),
-        inspiration: vary(78, seed + 2, 5),
-        security: vary(50, seed + 3, 7),
-        comfort: vary(55, seed + 4, 7),
-        enchantment: vary(95, seed + 5, 3),
-        serenity: vary(68, seed + 6, 6),
-        admiration: vary(80, seed + 7, 5)
-      };
-
-    case "zen_serenity":
-      return {
-        calm: vary(92, seed, 3),
-        joy: vary(50, seed + 1, 6),
-        inspiration: vary(65, seed + 2, 6),
-        security: vary(85, seed + 3, 5),
-        comfort: vary(80, seed + 4, 5),
-        enchantment: vary(55, seed + 5, 6),
-        serenity: vary(95, seed + 6, 3),
-        admiration: vary(70, seed + 7, 5)
-      };
-
-    case "balanced_human":
-      return {
-        calm: vary(70, seed, 6),
-        joy: vary(65, seed + 1, 6),
-        inspiration: vary(68, seed + 2, 6),
-        security: vary(75, seed + 3, 6),
-        comfort: vary(78, seed + 4, 6),
-        enchantment: vary(60, seed + 5, 6),
-        serenity: vary(72, seed + 6, 6),
-        admiration: vary(70, seed + 7, 6)
-      };
-
-    default:
-      return {
-        calm: 60,
-        joy: 60,
-        inspiration: 60,
-        security: 60,
-        comfort: 60,
-        enchantment: 60,
-        serenity: 60,
-        admiration: 60
-      };
-  }
-}
-
-function buildDynamicSummary(profile, base, seed) {
-  const openings = [
-    "This project suggests",
-    "The image communicates",
-    "The spatial composition creates",
-    "This architectural proposal conveys"
-  ];
-
-  const profileDescriptors = {
-    calm_minimal: [
-      "a quiet and disciplined atmosphere",
-      "a restrained and spacious mood",
-      "a clear sense of order and calm"
-    ],
-    dramatic_monumental: [
-      "a powerful and monumental emotional register",
-      "an intense and commanding spatial presence",
-      "a visually dominant and dramatic atmosphere"
-    ],
-    warm_human: [
-      "a welcoming and human-centered atmosphere",
-      "a balanced and approachable emotional character",
-      "a warm sense of comfort and usability"
-    ],
-    dense_tense: [
-      "a compressed and psychologically intense spatial reading",
-      "a dense atmosphere shaped by tension and complexity",
-      "a stimulating but potentially overwhelming experience"
-    ],
-    poetic_enchanting: [
-      "an immersive and poetic emotional atmosphere",
-      "a strong sense of mood, mystery, and storytelling",
-      "an evocative experience shaped by imagination and ambiance"
-    ],
-    bright_civic: [
-      "a generous and uplifting civic quality",
-      "an open and confident public-facing atmosphere",
-      "a clear sense of dignity, light, and accessibility"
-    ],
-    luxury_refined: [
-      "a refined and elevated spatial identity",
-      "an atmosphere of sophistication and composure",
-      "a polished emotional register rooted in material control"
-    ],
-    experimental_dynamic: [
-      "a highly dynamic and exploratory architectural expression",
-      "an energetic identity built on movement and contrast",
-      "a bold and unconventional emotional language"
-    ]
-  };
-
-  const strengths = [];
-  if (base.calm >= 65) strengths.push("calm");
-  if (base.interest >= 70) strengths.push("visual interest");
-  if (base.admiration >= 75) strengths.push("admiration");
-  if (base.enchantment >= 70) strengths.push("enchantment");
-  if (base.anxiety >= 45) strengths.push("tension");
-
-  const strengthText =
-    strengths.length > 0
-      ? `Its strongest qualities are ${joinNatural(strengths)}.`
-      : "Its emotional profile remains relatively balanced.";
-
-  const cautionPool = [];
-  if (base.anxiety >= 45) cautionPool.push("At moments, the composition may feel emotionally demanding.");
-  if (base.calm < 35) cautionPool.push("A clearer sense of visual breathing space could improve comfort.");
-  if (base.enchantment < 45) cautionPool.push("The atmosphere could become more memorable through stronger mood and material depth.");
-  if (base.interest < 50) cautionPool.push("The project may benefit from sharper focal moments or greater spatial contrast.");
-
-  const opening = choice(openings, seed + 20);
-  const descriptor = choice(profileDescriptors[profile] || ["a balanced architectural atmosphere"], seed + 21);
-  const caution = cautionPool.length ? " " + choice(cautionPool, seed + 22) : "";
-
-  return `${opening} ${descriptor}. ${strengthText}${caution}`;
-}
-
-function parseDesiredOutcome(text = "") {
-  const lower = text.toLowerCase();
-
-  return {
-    moreCalm:
-      lower.includes("more calm") ||
-      lower.includes("plus de calme") ||
-      lower.includes("calmer") ||
-      lower.includes("more peaceful"),
-    lessAnxiety:
-      lower.includes("less anxiety") ||
-      lower.includes("moins d'anxiété") ||
-      lower.includes("less stress") ||
-      lower.includes("less tension"),
-    moreAdmiration:
-      lower.includes("more admiration") ||
-      lower.includes("plus d'admiration") ||
-      lower.includes("more impressive"),
-    moreEnchantment:
-      lower.includes("more enchantment") ||
-      lower.includes("plus d'enchantement") ||
-      lower.includes("more magic") ||
-      lower.includes("more poetic"),
-    moreInterest:
-      lower.includes("more interest") ||
-      lower.includes("plus d'intérêt") ||
-      lower.includes("more curiosity") ||
-      lower.includes("more engaging"),
-    moreWarmth:
-      lower.includes("more warmth") ||
-      lower.includes("plus de chaleur") ||
-      lower.includes("warmer"),
-    hasGoal: lower.trim().length > 0,
-    raw: text
-  };
-}
-
-function buildGoalResponse(goal, base, seed) {
   if (!goal.hasGoal) {
     return "No specific emotional goal was provided. The recommendations therefore respond mainly to the current emotional profile of the project.";
   }
@@ -438,172 +294,146 @@ function buildGoalResponse(goal, base, seed) {
 
   if (goal.moreCalm) {
     messages.push(
-      base.calm >= 65
-        ? "The project already leans toward calm, so the design strategy should reinforce continuity, softness, and visual restraint."
-        : "To create more calm, the project should reduce tension, simplify competing elements, and create more visual breathing space."
+      emotions.calm >= 70
+        ? "The project already reads as relatively calm, so the next step is to preserve clarity while deepening refinement."
+        : "To increase calm, the project should soften contrast, reduce visual competition, and strengthen spatial continuity."
     );
   }
 
-  if (goal.lessAnxiety) {
+  if (goal.moreJoy) {
     messages.push(
-      base.anxiety <= 25
-        ? "Anxiety is already limited, so refinement should focus on preserving comfort while improving clarity and warmth."
-        : "To reduce anxiety, the project should soften abrupt contrasts, clarify hierarchy, and strengthen human-scale cues."
+      "To increase joy, the design should feel brighter, warmer, and more open to uplifting spatial moments."
     );
   }
 
-  if (goal.moreAdmiration) {
+  if (goal.moreInspiration) {
     messages.push(
-      "To increase admiration, the design should sharpen its architectural identity through stronger hierarchy, proportion, and signature moments."
+      "To increase inspiration, the project should create stronger moments of architectural ambition, contrast, and memorable form."
+    );
+  }
+
+  if (goal.moreSecurity) {
+    messages.push(
+      "To reinforce security, the design should become more legible, stable, and visually reassuring."
+    );
+  }
+
+  if (goal.moreComfort) {
+    messages.push(
+      "To create more comfort, the atmosphere should feel warmer, softer, and more human-centered."
     );
   }
 
   if (goal.moreEnchantment) {
     messages.push(
-      "To increase enchantment, the atmosphere should become more immersive through light, shadow, depth, and carefully staged material expression."
+      "To increase enchantment, the project should develop more atmosphere, depth, and emotional staging."
     );
   }
 
-  if (goal.moreInterest) {
+  if (goal.moreSerenity) {
     messages.push(
-      "To generate more interest, the project should introduce richer focal points, rhythm changes, or moments of visual surprise."
+      "To increase serenity, the project should reduce visual friction and create a quieter overall reading."
     );
   }
 
-  if (goal.moreWarmth) {
+  if (goal.moreAdmiration) {
     messages.push(
-      "To create more warmth, the project should use softer materials, warmer tones, and more human-centered spatial transitions."
+      "To increase admiration, the architecture should feel more resolved, more distinctive, and more compositionally intentional."
     );
   }
 
   if (messages.length === 0) {
-    const generic = [
-      `The desired emotional outcome is "${goal.raw}". The design should align its light, materiality, scale, and hierarchy more clearly with that direction.`,
-      `The stated goal is "${goal.raw}". The most effective strategy is to tune atmosphere through material choices, spatial rhythm, and perceived comfort.`,
-      `The target emotional direction is "${goal.raw}". The project should be adjusted through clearer mood-setting elements and more intentional spatial cues.`
-    ];
-    return choice(generic, seed + 50);
+    return `The desired emotional outcome is "${goal.raw}". The design should align its light, materiality, contrast, and tonal atmosphere more clearly with that direction.`;
   }
 
   return messages.join(" ");
 }
 
-function buildDynamicSuggestions(profile, base, goal, seed) {
-  const suggestionBank = {
-    calm: [
-      "Reduce competing visual elements to reinforce calm.",
-      "Use a more consistent material palette to create a quieter reading.",
-      "Open more visual breathing space between major architectural elements.",
-      "Simplify formal transitions to produce a steadier emotional rhythm."
-    ],
-    interest: [
-      "Introduce a stronger focal moment to increase visual interest.",
-      "Use contrast in volume, light, or texture to create a more engaging sequence.",
-      "Develop one unexpected spatial gesture to intensify curiosity.",
-      "Create clearer moments of compression and release to keep attention alive."
-    ],
-    admiration: [
-      "Strengthen proportion and hierarchy so the project feels more resolved and intentional.",
-      "Develop one signature architectural move that elevates the identity of the design.",
-      "Refine the composition so the project reads as more coherent and memorable.",
-      "Use materials and detailing more deliberately to increase perceived quality."
-    ],
-    enchantment: [
-      "Layer light and shadow to create a more atmospheric experience.",
-      "Use material depth and tonal nuance to increase enchantment.",
-      "Design for mood, not only function, by staging moments of discovery.",
-      "Introduce spatial sequences that feel immersive rather than purely efficient."
-    ],
-    anxiety: [
-      "Reduce abrupt contrast and visual congestion to lower anxiety.",
-      "Clarify circulation and hierarchy so the project feels easier to read.",
-      "Introduce softer edges, warmer materials, or vegetation to reduce tension.",
-      "Balance expressive gestures with calmer background surfaces."
-    ],
-    warmth: [
-      "Use warmer materials such as timber, textured stone, or softer finishes.",
-      "Increase human-scale references to make the environment feel more welcoming.",
-      "Soften the atmosphere through warmer tones and gentler spatial transitions.",
-      "Balance monumentality with tactile, intimate elements."
-    ],
-    profile: {
-      calm_minimal: [
-        "Add one refined focal element so the calm language does not become emotionally flat.",
-        "Introduce subtle texture variation to enrich the minimalist atmosphere.",
-        "Use nuanced shadow and depth to prevent excessive neutrality."
-      ],
-      dramatic_monumental: [
-        "Counterbalance monumentality with more approachable human-scale zones.",
-        "Soften the emotional harshness with warmer transitions and gentler thresholds.",
-        "Use vegetation or filtered light to temper the intensity."
-      ],
-      warm_human: [
-        "Increase architectural distinction so warmth is paired with stronger identity.",
-        "Introduce a clearer formal rhythm to give the project more presence.",
-        "Use one more dramatic spatial moment without losing comfort."
-      ],
-      dense_tense: [
-        "Reduce formal density in selected zones to improve mental comfort.",
-        "Create pauses or open voids to relieve pressure in the composition.",
-        "Clarify major and minor elements so the overall reading feels less compressed."
-      ],
-      poetic_enchanting: [
-        "Support the atmospheric quality with stronger functional legibility.",
-        "Anchor the poetic mood in a clearer material theme.",
-        "Balance mystery with moments of orientation and comfort."
-      ],
-      bright_civic: [
-        "Reinforce generosity through threshold design and public-facing clarity.",
-        "Use rhythm and proportion to give the civic character more authority.",
-        "Create stronger moments of invitation at the human scale."
-      ],
-      luxury_refined: [
-        "Deepen the tactile experience through richer material contrast.",
-        "Use more controlled focal lighting to intensify refinement.",
-        "Ensure elegance is paired with enough warmth to avoid emotional distance."
-      ],
-      experimental_dynamic: [
-        "Clarify the main design idea so experimentation feels intentional rather than scattered.",
-        "Balance expressive geometry with calmer zones of rest.",
-        "Strengthen readability so innovation remains accessible."
-      ]
-    }
+function buildSuggestions(features, emotions, desiredOutcome = "") {
+  const suggestions = [];
+  const goal = parseDesiredOutcome(desiredOutcome);
+
+  if (features.brightness < 40) {
+    suggestions.push("Increase daylight presence or perceived brightness to improve openness and emotional clarity.");
+  }
+  if (features.brightness > 75) {
+    suggestions.push("Preserve the luminous quality while introducing selective depth to avoid emotional flatness.");
+  }
+
+  if (features.contrast > 70) {
+    suggestions.push("Soften abrupt contrasts in key zones to create a more balanced and comfortable reading.");
+  }
+  if (features.contrast < 35) {
+    suggestions.push("Introduce stronger focal contrast to give the project more visual hierarchy and memorability.");
+  }
+
+  if (features.warmth < 40) {
+    suggestions.push("Introduce warmer materials or tonal accents to create more comfort, joy, and emotional accessibility.");
+  }
+  if (features.warmth > 70) {
+    suggestions.push("Balance the warm tonal identity with clearer compositional anchors to maintain refinement.");
+  }
+
+  if (features.saturation < 35) {
+    suggestions.push("A restrained palette is effective, but one or two richer accents could improve inspiration and admiration.");
+  }
+  if (features.saturation > 70) {
+    suggestions.push("Reduce excess chromatic intensity in selected zones to preserve calm and serenity.");
+  }
+
+  const weakestEmotion = Object.entries(emotions).sort((a, b) => a[1] - b[1])[0][0];
+
+  const weakestSuggestions = {
+    calm: "Reduce visual competition and increase continuity across the spatial composition.",
+    joy: "Introduce brighter or warmer experiential moments to make the atmosphere more uplifting.",
+    inspiration: "Create one strong architectural gesture that elevates the conceptual ambition of the project.",
+    security: "Clarify hierarchy and thresholds so the project feels more stable and reassuring.",
+    comfort: "Use softer textures, warmer tones, and more human-scale transitions to improve comfort.",
+    enchantment: "Stage more immersive moments through shadow, reflection, depth, or material atmosphere.",
+    serenity: "Simplify the overall visual field to produce a quieter emotional experience.",
+    admiration: "Refine proportion, composition, and focal hierarchy so the architecture feels more intentional."
   };
 
-  const suggestions = [];
+  suggestions.push(weakestSuggestions[weakestEmotion]);
 
-  suggestions.push(choice(suggestionBank.profile[profile], seed + 60));
-
-  const ranked = [
-    { key: "calm", value: base.calm },
-    { key: "interest", value: base.interest },
-    { key: "admiration", value: base.admiration },
-    { key: "enchantment", value: base.enchantment },
-    { key: "anxiety", value: 100 - base.anxiety }
-  ];
-
-  ranked.sort((a, b) => a.value - b.value);
-
-  const weakest1 = ranked[0].key;
-  const weakest2 = ranked[1].key;
-
-  suggestions.push(choice(suggestionBank[weakest1], seed + 61));
-  suggestions.push(choice(suggestionBank[weakest2], seed + 62));
-
-  if (goal.moreCalm) suggestions.push(choice(suggestionBank.calm, seed + 70));
-  if (goal.lessAnxiety) suggestions.push(choice(suggestionBank.anxiety, seed + 71));
-  if (goal.moreAdmiration) suggestions.push(choice(suggestionBank.admiration, seed + 72));
-  if (goal.moreEnchantment) suggestions.push(choice(suggestionBank.enchantment, seed + 73));
-  if (goal.moreInterest) suggestions.push(choice(suggestionBank.interest, seed + 74));
-  if (goal.moreWarmth) suggestions.push(choice(suggestionBank.warmth, seed + 75));
+  if (goal.moreCalm) suggestions.push("Strengthen visual breathing space and reduce unnecessary contrast to support calm.");
+  if (goal.moreJoy) suggestions.push("Use warmer, brighter experiential cues to support a more joyful atmosphere.");
+  if (goal.moreInspiration) suggestions.push("Increase architectural boldness through stronger contrast, rhythm, or signature form.");
+  if (goal.moreSecurity) suggestions.push("Make circulation, hierarchy, and enclosure feel clearer and more reliable.");
+  if (goal.moreComfort) suggestions.push("Introduce tactile softness and a more human-centered material language.");
+  if (goal.moreEnchantment) suggestions.push("Use layered lighting, mystery, and material depth to increase enchantment.");
+  if (goal.moreSerenity) suggestions.push("Reduce visual noise and create a more controlled, contemplative atmosphere.");
+  if (goal.moreAdmiration) suggestions.push("Develop one or two memorable design moves that elevate architectural presence.");
 
   return uniqueList(suggestions).slice(0, 6);
 }
 
+function parseDesiredOutcome(text = "") {
+  const lower = text.toLowerCase();
+
+  return {
+    moreCalm: lower.includes("more calm") || lower.includes("plus de calme") || lower.includes("calmer"),
+    moreJoy: lower.includes("more joy") || lower.includes("plus de joie") || lower.includes("more joyful"),
+    moreInspiration: lower.includes("more inspiration") || lower.includes("plus d'inspiration") || lower.includes("more inspiring"),
+    moreSecurity: lower.includes("more security") || lower.includes("plus de sécurité") || lower.includes("safer"),
+    moreComfort: lower.includes("more comfort") || lower.includes("plus de confort") || lower.includes("more comfortable"),
+    moreEnchantment: lower.includes("more enchantment") || lower.includes("plus d'enchantement") || lower.includes("more poetic"),
+    moreSerenity: lower.includes("more serenity") || lower.includes("plus de sérénité") || lower.includes("more serene"),
+    moreAdmiration: lower.includes("more admiration") || lower.includes("plus d'admiration") || lower.includes("more impressive"),
+    hasGoal: lower.trim().length > 0,
+    raw: text
+  };
+}
+
+function uniqueList(items) {
+  return [...new Set(items)];
+}
+
 function joinNatural(items) {
-  if (items.length === 1) return items[0];
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+  const pretty = items.map((item) => item.charAt(0).toUpperCase() + item.slice(1));
+  if (pretty.length === 1) return pretty[0];
+  if (pretty.length === 2) return `${pretty[0]} and ${pretty[1]}`;
+  return `${pretty.slice(0, -1).join(", ")}, and ${pretty[pretty.length - 1]}`;
 }
 
 app.listen(port, () => {
