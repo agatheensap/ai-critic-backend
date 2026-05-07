@@ -1,20 +1,29 @@
 import express from "express";
 import cors from "cors";
 import PDFDocument from "pdfkit";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 const port = process.env.PORT || 3000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.static(__dirname));
 
 app.get("/", (req, res) => {
-  res.send("AI Architectural Critic backend is running with render, plan, and section modes.");
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+app.get("/health", (req, res) => {
+  res.send("AI Architectural Critic backend is running in render analysis mode.");
 });
 
 app.post("/analyze", async (req, res) => {
   try {
-    const { imageBase64, imageType = "render", desiredOutcome, visualFeatures } = req.body;
+    const { imageBase64, desiredOutcome = "", visualFeatures } = req.body;
 
     if (!imageBase64) {
       return res.status(400).json({
@@ -23,20 +32,13 @@ app.post("/analyze", async (req, res) => {
     }
 
     const features = sanitizeFeatures(visualFeatures);
-
-    let result;
-    if (imageType === "plan") {
-      result = buildPlanResponse(features, desiredOutcome);
-    } else if (imageType === "section") {
-      result = buildSectionResponse(features, desiredOutcome);
-    } else {
-      result = buildRenderResponse(features, desiredOutcome);
-    }
+    const result = buildRenderResponse(features, desiredOutcome);
 
     res.json({
       ...result,
       visualFeatures: features,
-      imageType
+      desiredOutcome,
+      imageType: "render"
     });
   } catch (error) {
     console.error("Analyze error:", error);
@@ -54,16 +56,26 @@ app.post("/report", async (req, res) => {
       joy = 0,
       inspiration = 0,
       security = 0,
-      comfort = 0,
       enchantment = 0,
-      serenity = 0,
       admiration = 0,
       summary = "",
       goalResponse = "",
       suggestions = [],
       desiredOutcome = "",
-      imageType = "render"
+      individualAnalyses = [],
+      images = [],
+      reportImages = []
     } = req.body;
+    const imageType = "render";
+    const desiredOutcomeText = typeof desiredOutcome === "string" ? desiredOutcome.trim() : "";
+    const reportGoalResponse = getGoalResponseOrFallback(goalResponse, desiredOutcomeText, {
+      calm,
+      joy,
+      inspiration,
+      security,
+      enchantment,
+      admiration
+    });
 
     const doc = new PDFDocument({
       size: "A4",
@@ -82,17 +94,21 @@ app.post("/report", async (req, res) => {
     doc.fontSize(11).fillColor("#666666").text("Emotional Analysis Report");
 
     doc.moveDown(1.2);
-    doc.fontSize(14).fillColor("#111111").text("Image Type");
+    doc.fontSize(14).fillColor("#111111").text("Project Overview");
     doc.moveDown(0.3);
 
     const imageTypeLabel =
       imageType === "plan"
-        ? "Plan"
+        ? "Plans"
         : imageType === "section"
-          ? "Section / Elevation"
-          : "Render / Photo";
+          ? "Sections / Elevations"
+          : "Renders / Photos";
 
-    doc.fontSize(11).fillColor("#333333").text(imageTypeLabel);
+    const embeddedImages = normalizeReportImages(reportImages.length > 0 ? reportImages : images);
+    const numImages = individualAnalyses.length || embeddedImages.length || 1;
+    doc.fontSize(11).fillColor("#333333").text(`${numImages} ${imageTypeLabel} analyzed`);
+
+    drawProjectImagesSection(doc, embeddedImages);
 
     doc.moveDown(1);
     doc.fontSize(14).fillColor("#111111").text("Desired Emotional Outcome");
@@ -101,13 +117,13 @@ app.post("/report", async (req, res) => {
       .fontSize(11)
       .fillColor("#333333")
       .text(
-        desiredOutcome && desiredOutcome.trim().length > 0
-          ? desiredOutcome
+        desiredOutcomeText.length > 0
+          ? desiredOutcomeText
           : "No specific emotional goal provided."
       );
 
     doc.moveDown(1);
-    doc.fontSize(14).fillColor("#111111").text("Emotional Scores");
+    doc.fontSize(14).fillColor("#111111").text("Aggregated Emotional Scores");
     doc.moveDown(0.5);
 
     const scores = [
@@ -115,9 +131,7 @@ app.post("/report", async (req, res) => {
       ["Joy", joy],
       ["Inspiration", inspiration],
       ["Security", security],
-      ["Comfort", comfort],
       ["Enchantment", enchantment],
-      ["Serenity", serenity],
       ["Admiration", admiration]
     ];
 
@@ -126,7 +140,7 @@ app.post("/report", async (req, res) => {
     });
 
     doc.moveDown(1);
-    doc.fontSize(14).fillColor("#111111").text("Summary");
+    doc.fontSize(14).fillColor("#111111").text("Project Summary");
     doc.moveDown(0.3);
     doc.fontSize(11).fillColor("#333333").text(summary || "No summary available.", {
       align: "left",
@@ -139,10 +153,43 @@ app.post("/report", async (req, res) => {
     doc
       .fontSize(11)
       .fillColor("#333333")
-      .text(goalResponse || "No goal-oriented interpretation available.", {
+      .text(reportGoalResponse, {
         align: "left",
         lineGap: 3
       });
+
+    // Individual image analyses
+    if (individualAnalyses.length > 1) {
+      doc.moveDown(1);
+      doc.fontSize(14).fillColor("#111111").text("Individual Image Analyses");
+      doc.moveDown(0.5);
+
+      individualAnalyses.forEach((analysis, index) => {
+        const imageName =
+          analysis.imageName ||
+          embeddedImages[index]?.name ||
+          images[index]?.file?.name ||
+          images[index]?.name ||
+          `Image ${index + 1}`;
+        doc.fontSize(12).fillColor("#111111").text(`${imageName}`, { underline: true });
+        doc.moveDown(0.3);
+
+        const imgScores = [
+          ["Calm", analysis.calm],
+          ["Joy", analysis.joy],
+          ["Inspiration", analysis.inspiration],
+          ["Security", analysis.security],
+          ["Enchantment", analysis.enchantment],
+          ["Admiration", analysis.admiration]
+        ];
+
+        imgScores.forEach(([label, value]) => {
+          doc.fontSize(10).fillColor("#555555").text(`${label}: ${value}%`);
+        });
+
+        doc.moveDown(0.5);
+      });
+    }
 
     doc.moveDown(1);
     doc.fontSize(14).fillColor("#111111").text("Design Suggestions");
@@ -165,7 +212,7 @@ app.post("/report", async (req, res) => {
       .fontSize(9)
       .fillColor("#777777")
       .text(
-        "Prototype mode - emotional analysis is based on simple visual feature extraction and separate interpretation modes for renders, plans, and sections/elevations."
+        "Prototype mode - emotional analysis is based on simple visual feature extraction for rendered and photographic architectural images."
       );
 
     doc.end();
@@ -178,12 +225,135 @@ app.post("/report", async (req, res) => {
   }
 });
 
+function getGoalResponseOrFallback(goalResponse, desiredOutcome, emotions) {
+  if (typeof goalResponse === "string" && goalResponse.trim().length > 0) {
+    return goalResponse.trim();
+  }
+
+  if (typeof desiredOutcome === "string" && desiredOutcome.trim().length > 0) {
+    return buildGoalResponse(desiredOutcome, emotions);
+  }
+
+  return "No specific emotional goal was provided. The recommendations therefore respond mainly to the current emotional profile of the project.";
+}
+
+function normalizeReportImages(images = []) {
+  if (!Array.isArray(images)) return [];
+
+  return images
+    .map((image, index) => {
+      const dataUrl = image?.base64 || image?.imageBase64 || image?.dataUrl || "";
+      const match = /^data:image\/(png|jpe?g);base64,([a-z0-9+/=\s]+)$/i.exec(dataUrl);
+
+      if (!match) return null;
+
+      return {
+        name: image?.name || image?.file?.name || `Image ${index + 1}`,
+        buffer: Buffer.from(match[2].replace(/\s/g, ""), "base64")
+      };
+    })
+    .filter(Boolean);
+}
+
+function drawProjectImagesSection(doc, images) {
+  if (images.length === 0) return;
+
+  const topSpacing = 28;
+  const headingHeight = 24;
+  const introSpacing = 12;
+  const sectionStartHeight = topSpacing + headingHeight + introSpacing;
+
+  if (!hasVerticalSpace(doc, sectionStartHeight + 180)) {
+    doc.addPage();
+  } else {
+    doc.moveDown(1.4);
+  }
+
+  doc.fontSize(14).fillColor("#111111").text("Project Images");
+  doc.moveDown(0.7);
+
+  images.forEach((image, index) => {
+    drawProjectImage(doc, image, index);
+  });
+
+  doc.moveDown(0.8);
+}
+
+function drawProjectImage(doc, image, index) {
+  const margins = doc.page.margins;
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+  const contentWidth = pageWidth - margins.left - margins.right;
+  const contentBottom = pageHeight - margins.bottom;
+  const captionHeight = 16;
+  const imageGap = 8;
+  const afterImageGap = 22;
+  const maxImageHeight = Math.min(360, pageHeight - margins.top - margins.bottom - captionHeight - imageGap - afterImageGap);
+
+  let imageInfo;
+  try {
+    imageInfo = doc.openImage(image.buffer);
+  } catch (error) {
+    ensureVerticalSpace(doc, captionHeight + 28);
+    doc.fontSize(10).fillColor("#555555").text(image.name || `Image ${index + 1}`);
+    doc.moveDown(0.25);
+    doc.fontSize(10).fillColor("#777777").text("Image could not be embedded in the PDF report.");
+    doc.moveDown(0.8);
+    return;
+  }
+
+  const fitted = fitDimensions(imageInfo.width, imageInfo.height, contentWidth, maxImageHeight);
+  const blockHeight = captionHeight + imageGap + fitted.height + afterImageGap;
+
+  ensureVerticalSpace(doc, blockHeight);
+
+  doc.fontSize(10).fillColor("#555555").text(image.name || `Image ${index + 1}`, {
+    width: contentWidth,
+    ellipsis: true
+  });
+
+  const imageX = margins.left + (contentWidth - fitted.width) / 2;
+  const imageY = doc.y + imageGap;
+
+  doc.image(image.buffer, imageX, imageY, {
+    width: fitted.width,
+    height: fitted.height
+  });
+
+  doc.x = margins.left;
+  doc.y = Math.min(imageY + fitted.height + afterImageGap, contentBottom);
+}
+
+function fitDimensions(width, height, maxWidth, maxHeight) {
+  const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+  return {
+    width: width * scale,
+    height: height * scale
+  };
+}
+
+function ensureVerticalSpace(doc, requiredHeight) {
+  if (!hasVerticalSpace(doc, requiredHeight)) {
+    doc.addPage();
+  }
+}
+
+function hasVerticalSpace(doc, requiredHeight) {
+  const bottom = doc.page.height - doc.page.margins.bottom;
+  return doc.y + requiredHeight <= bottom;
+}
+
 function sanitizeFeatures(features = {}) {
   return {
     brightness: clamp(features.brightness ?? 50, 0, 100),
     contrast: clamp(features.contrast ?? 50, 0, 100),
     warmth: clamp(features.warmth ?? 50, 0, 100),
-    saturation: clamp(features.saturation ?? 50, 0, 100)
+    saturation: clamp(features.saturation ?? 50, 0, 100),
+    hue: clamp(features.hue ?? 50, 0, 100),
+    lightness: clamp(features.lightness ?? 50, 0, 100),
+    sharpness: clamp(features.sharpness ?? 50, 0, 100),
+    entropy: clamp(features.entropy ?? 50, 0, 100),
+    uniqueColors: clamp(features.uniqueColors ?? 50, 0, 100)
   };
 }
 
@@ -191,74 +361,86 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
+function hueProximity(hue, targetAngle, width = 40) {
+  const angle = (hue % 100) * 3.6;
+  const diff = Math.min(Math.abs(angle - targetAngle), 360 - Math.abs(angle - targetAngle));
+  return Math.max(0, 1 - diff / width);
+}
+
 function buildRenderResponse(features, desiredOutcome = "") {
-  const { brightness, contrast, warmth, saturation } = features;
+  const { brightness, contrast, warmth, saturation, hue, lightness, sharpness, entropy, uniqueColors } = features;
+  const yellowBoost = hueProximity(hue, 50, 45) * 100;
 
   const calm = clamp(
-    0.35 * brightness +
-    0.30 * (100 - contrast) +
-    0.20 * warmth +
-    0.15 * (100 - saturation),
+    0.22 * brightness +
+    0.24 * (100 - contrast) +
+    0.12 * warmth +
+    0.12 * (100 - saturation) +
+    0.12 * lightness +
+    0.10 * (100 - entropy) +
+    0.08 * (100 - sharpness) +
+    0.05 * (100 - uniqueColors),
     0, 100
   );
 
   const joy = clamp(
-    0.30 * brightness +
-    0.30 * warmth +
-    0.25 * saturation +
-    0.15 * (100 - contrast),
+    0.18 * brightness +
+    0.22 * warmth +
+    0.14 * saturation +
+    0.08 * lightness +
+    0.10 * entropy +
+    0.08 * uniqueColors +
+    0.10 * yellowBoost +
+    0.10 * (100 - contrast),
     0, 100
   );
 
   const inspiration = clamp(
-    0.20 * brightness +
-    0.35 * contrast +
-    0.20 * saturation +
-    0.25 * warmth,
+    0.14 * brightness +
+    0.26 * contrast +
+    0.12 * saturation +
+    0.12 * warmth +
+    0.10 * sharpness +
+    0.12 * entropy +
+    0.10 * uniqueColors,
     0, 100
   );
 
   const security = clamp(
-    0.30 * brightness +
-    0.15 * warmth +
-    0.35 * (100 - contrast) +
-    0.20 * (100 - saturation),
-    0, 100
-  );
-
-  const comfort = clamp(
-    0.25 * brightness +
-    0.30 * warmth +
-    0.25 * (100 - contrast) +
-    0.20 * (100 - saturation),
+    0.18 * brightness +
+    0.08 * warmth +
+    0.22 * (100 - contrast) +
+    0.14 * (100 - saturation) +
+    0.10 * lightness +
+    0.12 * (100 - entropy) +
+    0.08 * (100 - sharpness) +
+    0.08 * (100 - uniqueColors),
     0, 100
   );
 
   const enchantment = clamp(
-    0.15 * brightness +
-    0.30 * contrast +
-    0.25 * saturation +
-    0.30 * warmth,
-    0, 100
-  );
-
-  const serenity = clamp(
-    0.40 * brightness +
-    0.35 * (100 - contrast) +
-    0.15 * warmth +
-    0.10 * (100 - saturation),
+    0.12 * brightness +
+    0.24 * contrast +
+    0.18 * saturation +
+    0.16 * entropy +
+    0.12 * uniqueColors +
+    0.10 * sharpness +
+    0.08 * warmth,
     0, 100
   );
 
   const admiration = clamp(
-    0.20 * brightness +
-    0.35 * contrast +
-    0.20 * warmth +
-    0.25 * saturation,
+    0.16 * brightness +
+    0.26 * contrast +
+    0.12 * saturation +
+    0.12 * sharpness +
+    0.12 * entropy +
+    0.10 * uniqueColors +
+    0.10 * warmth,
     0, 100
   );
 
-  const emotions = { calm, joy, inspiration, security, comfort, enchantment, serenity, admiration };
+  const emotions = { calm, joy, inspiration, security, enchantment, admiration };
 
   return {
     ...emotions,
@@ -268,194 +450,9 @@ function buildRenderResponse(features, desiredOutcome = "") {
   };
 }
 
-function buildPlanResponse(features, desiredOutcome = "") {
-  const { brightness, contrast, warmth, saturation } = features;
-
-  const calm = clamp(
-    0.30 * brightness +
-    0.40 * (100 - contrast) +
-    0.10 * warmth +
-    0.20 * (100 - saturation),
-    0, 100
-  );
-
-  const joy = clamp(
-    0.15 * brightness +
-    0.15 * warmth +
-    0.10 * saturation +
-    0.20 * (100 - contrast) +
-    20,
-    0, 100
-  );
-
-  const inspiration = clamp(
-    0.20 * brightness +
-    0.40 * contrast +
-    0.10 * warmth +
-    0.10 * saturation +
-    12,
-    0, 100
-  );
-
-  const security = clamp(
-    0.35 * brightness +
-    0.35 * (100 - contrast) +
-    0.10 * warmth +
-    0.20 * (100 - saturation),
-    0, 100
-  );
-
-  const comfort = clamp(
-    0.25 * brightness +
-    0.35 * (100 - contrast) +
-    0.10 * warmth +
-    0.30 * (100 - saturation),
-    0, 100
-  );
-
-  const enchantment = clamp(
-    0.10 * brightness +
-    0.25 * contrast +
-    0.05 * warmth +
-    0.05 * saturation +
-    18,
-    0, 100
-  );
-
-  const serenity = clamp(
-    0.40 * brightness +
-    0.40 * (100 - contrast) +
-    0.05 * warmth +
-    0.15 * (100 - saturation),
-    0, 100
-  );
-
-  const admiration = clamp(
-    0.20 * brightness +
-    0.40 * contrast +
-    0.05 * warmth +
-    0.05 * saturation +
-    28,
-    0, 100
-  );
-
-  const emotions = { calm, joy, inspiration, security, comfort, enchantment, serenity, admiration };
-
-  return {
-    ...emotions,
-    summary: buildPlanSummary(features, emotions),
-    goalResponse: buildGoalResponse(desiredOutcome, emotions),
-    suggestions: buildPlanSuggestions(features, emotions, desiredOutcome)
-  };
-}
-
-function buildSectionResponse(features, desiredOutcome = "") {
-  const { brightness, contrast, warmth, saturation } = features;
-
-  const calm = clamp(
-    0.28 * brightness +
-    0.22 * (100 - contrast) +
-    0.10 * warmth +
-    0.10 * (100 - saturation) +
-    10,
-    0, 100
-  );
-
-  const joy = clamp(
-    0.18 * brightness +
-    0.20 * warmth +
-    0.12 * saturation +
-    12,
-    0, 100
-  );
-
-  const inspiration = clamp(
-    0.18 * brightness +
-    0.38 * contrast +
-    0.08 * warmth +
-    0.08 * saturation +
-    22,
-    0, 100
-  );
-
-  const security = clamp(
-    0.25 * brightness +
-    0.28 * (100 - contrast) +
-    0.08 * warmth +
-    0.10 * (100 - saturation) +
-    18,
-    0, 100
-  );
-
-  const comfort = clamp(
-    0.18 * brightness +
-    0.20 * warmth +
-    0.20 * (100 - contrast) +
-    0.10 * (100 - saturation) +
-    18,
-    0, 100
-  );
-
-  const enchantment = clamp(
-    0.12 * brightness +
-    0.30 * contrast +
-    0.10 * warmth +
-    0.08 * saturation +
-    22,
-    0, 100
-  );
-
-  const serenity = clamp(
-    0.28 * brightness +
-    0.25 * (100 - contrast) +
-    0.06 * warmth +
-    0.08 * (100 - saturation) +
-    14,
-    0, 100
-  );
-
-  const admiration = clamp(
-    0.18 * brightness +
-    0.42 * contrast +
-    0.06 * warmth +
-    0.06 * saturation +
-    24,
-    0, 100
-  );
-
-  const emotions = { calm, joy, inspiration, security, comfort, enchantment, serenity, admiration };
-
-  return {
-    ...emotions,
-    summary: buildSectionSummary(features, emotions),
-    goalResponse: buildGoalResponse(desiredOutcome, emotions),
-    suggestions: buildSectionSuggestions(features, emotions, desiredOutcome)
-  };
-}
-
 function buildRenderSummary(emotions) {
   const topEmotions = top3(emotions);
   return `This render or photograph is interpreted as an atmospheric image shaped by light, contrast, warmth, and color intensity. The strongest emotional impressions are ${joinNatural(topEmotions)}.`;
-}
-
-function buildPlanSummary(features, emotions) {
-  const topEmotions = top3(emotions);
-  const clarityText =
-    features.contrast < 35 ? "a soft and highly legible graphic field"
-    : features.contrast > 70 ? "a dense and strongly contrasted graphic composition"
-    : "a relatively balanced level of graphic definition";
-
-  return `This plan is interpreted primarily as a spatial diagram rather than an atmospheric scene. It suggests ${clarityText}, and the strongest emotional impressions are ${joinNatural(topEmotions)}.`;
-}
-
-function buildSectionSummary(features, emotions) {
-  const topEmotions = top3(emotions);
-  const verticalText =
-    features.contrast > 65
-      ? "a strong sense of section depth, hierarchy, and structural presence"
-      : "a relatively measured sectional reading with controlled vertical rhythm";
-
-  return `This section or elevation is interpreted as a composition of structure, proportion, rhythm, and vertical relationships. It suggests ${verticalText}, and the strongest emotional impressions are ${joinNatural(topEmotions)}.`;
 }
 
 function buildGoalResponse(desiredOutcome = "", emotions) {
@@ -471,9 +468,7 @@ function buildGoalResponse(desiredOutcome = "", emotions) {
   if (goal.moreJoy) messages.push("To increase joy, the design should feel brighter, warmer, and more open to positive experiential moments.");
   if (goal.moreInspiration) messages.push("To increase inspiration, the design should strengthen conceptual boldness, contrast, or memorable spatial ideas.");
   if (goal.moreSecurity) messages.push("To reinforce security, the design should become more legible, stable, and reassuring.");
-  if (goal.moreComfort) messages.push("To create more comfort, the atmosphere should feel softer, clearer, and more human-centered.");
   if (goal.moreEnchantment) messages.push("To increase enchantment, the project should develop more atmosphere, depth, and emotional staging.");
-  if (goal.moreSerenity) messages.push("To increase serenity, the project should reduce visual noise and create a quieter overall reading.");
   if (goal.moreAdmiration) messages.push("To increase admiration, the architecture should feel more resolved, more distinctive, and more compositionally intentional.");
 
   if (messages.length === 0) {
@@ -487,51 +482,25 @@ function buildRenderSuggestions(features, emotions, desiredOutcome = "") {
   const suggestions = [];
   const goal = parseDesiredOutcome(desiredOutcome);
 
-  if (features.brightness < 40) suggestions.push("Increase daylight presence or perceived brightness to improve openness and emotional clarity.");
-  if (features.brightness > 75) suggestions.push("Preserve the luminous quality while introducing selective depth to avoid emotional flatness.");
-  if (features.contrast > 70) suggestions.push("Soften abrupt contrasts in key zones to create a more balanced and comfortable reading.");
-  if (features.contrast < 35) suggestions.push("Introduce stronger focal contrast to give the project more visual hierarchy and memorability.");
-  if (features.warmth < 40) suggestions.push("Introduce warmer materials or tonal accents to create more comfort, joy, and emotional accessibility.");
-  if (features.warmth > 70) suggestions.push("Balance the warm tonal identity with clearer compositional anchors to maintain refinement.");
-  if (features.saturation < 35) suggestions.push("A restrained palette is effective, but one or two richer accents could improve inspiration and admiration.");
-  if (features.saturation > 70) suggestions.push("Reduce excess chromatic intensity in selected zones to preserve calm and serenity.");
+  if (features.brightness < 40) suggestions.push("Introduce controlled daylight through lateral openings to soften spatial contrast and reinforce calm.");
+  if (features.brightness > 75) suggestions.push("Preserve luminous atmosphere while anchoring the composition with deeper material tones to maintain depth.");
+  if (features.contrast > 70) suggestions.push("Reduce abrupt tonal shifts and clarify the compositional rhythm so the atmosphere feels more cohesive.");
+  if (features.contrast < 35) suggestions.push("Introduce stronger focal contrast and material hierarchy so the spatial reading feels more intentional.");
+  if (features.warmth < 40) suggestions.push("Ground the image with warmer material articulation at human scale to strengthen security and accessibility.");
+  if (features.warmth > 70) suggestions.push("Balance warm tonal expression with cooler accents and compositional anchors to avoid a singular mood.");
+  if (features.saturation < 35) suggestions.push("Refine the palette with one or two purposeful accents to support inspiration while preserving calm.");
+  if (features.saturation > 70) suggestions.push("Moderate chromatic intensity so the mood remains elegant and the material expression does not overwhelm.");
+  if (features.hue >= 30 && features.hue <= 90) suggestions.push("Use warmer material and light relationships to support conviviality while preserving spatial clarity.");
+  if (features.hue >= 180 && features.hue <= 260) suggestions.push("Reinforce the cool palette with clear spatial order and precise material definition.");
+  if (features.lightness < 40) suggestions.push("Increase tonal clarity in the primary volumes so the architecture reads with more openness.");
+  if (features.lightness > 75) suggestions.push("Introduce deeper tonal gradations or darker materials to preserve perceived mass and spatial depth.");
+  if (features.sharpness < 40) suggestions.push("Define key edges and transitions so the spatial hierarchy is more legible.");
+  if (features.sharpness > 70) suggestions.push("Soften selected edges or diffuse detail so the composition retains atmosphere without feeling too crisp.");
+  if (features.entropy > 65) suggestions.push("Calibrate visual complexity with clearer hierarchy so the project feels richly layered yet readable.");
+  if (features.entropy < 30) suggestions.push("Introduce one or two decisive compositional moves to lift the design without sacrificing calm.");
+  if (features.uniqueColors > 20) suggestions.push("Keep color relationships intentional so the material story remains coherent and disciplined.");
+  if (features.uniqueColors < 5) suggestions.push("Use a confident accent or material gesture to give the composition a stronger sense of character.");
 
-  suggestions.push(weakestSuggestion(weakestEmotion(emotions)));
-  addGoalSuggestions(suggestions, goal);
-
-  return uniqueList(suggestions).slice(0, 6);
-}
-
-function buildPlanSuggestions(features, emotions, desiredOutcome = "") {
-  const suggestions = [];
-  const goal = parseDesiredOutcome(desiredOutcome);
-
-  if (features.contrast > 70) suggestions.push("Reduce excessive graphic density or line competition to improve the readability of the plan.");
-  if (features.contrast < 30) suggestions.push("Introduce clearer hierarchy between major and minor elements so the plan reads more decisively.");
-  if (features.brightness < 45) suggestions.push("Lighten the graphic composition or clarify empty space to make the plan feel more open and understandable.");
-  if (features.saturation > 20) suggestions.push("Use color more selectively so the plan remains clear and disciplined.");
-  if (features.saturation < 10) suggestions.push("A fully neutral plan is clean, but small tonal distinctions could improve hierarchy and comprehension.");
-
-  suggestions.push("Clarify the relationship between circulation, rooms, and thresholds so the plan feels more intentional.");
-  suggestions.push("Strengthen the graphic hierarchy between structure, enclosure, and movement.");
-  suggestions.push(weakestSuggestion(weakestEmotion(emotions)));
-  addGoalSuggestions(suggestions, goal);
-
-  return uniqueList(suggestions).slice(0, 6);
-}
-
-function buildSectionSuggestions(features, emotions, desiredOutcome = "") {
-  const suggestions = [];
-  const goal = parseDesiredOutcome(desiredOutcome);
-
-  if (features.contrast > 70) suggestions.push("Reduce line competition and strengthen hierarchy so the section or elevation reads more clearly.");
-  if (features.contrast < 30) suggestions.push("Introduce stronger graphic hierarchy to distinguish primary structure from secondary information.");
-  if (features.brightness < 45) suggestions.push("Clarify poche, cut elements, or tonal depth so the sectional reading becomes more legible.");
-  if (features.saturation > 20) suggestions.push("Use color sparingly so vertical relationships and structural rhythm remain dominant.");
-
-  suggestions.push("Strengthen the relationship between structure, envelope, and spatial sequence so the drawing feels more resolved.");
-  suggestions.push("Use hierarchy to distinguish what is cut, what is seen beyond, and what defines the main compositional rhythm.");
-  suggestions.push("Clarify the vertical order of spaces so the section or elevation communicates proportion more confidently.");
   suggestions.push(weakestSuggestion(weakestEmotion(emotions)));
   addGoalSuggestions(suggestions, goal);
 
@@ -545,27 +514,24 @@ function weakestEmotion(emotions) {
 function weakestSuggestion(name) {
   const map = {
     calm: "Reduce visual competition and improve continuity across the composition.",
-    joy: "Introduce lighter, more uplifting spatial cues or a more welcoming overall reading.",
+    joy: "Introduce lighter, more uplifting spatial cues to create a more welcoming atmosphere.",
     inspiration: "Strengthen the conceptual gesture or architectural idea so the design feels more ambitious.",
-    security: "Clarify organization and hierarchy so the project feels more stable and reassuring.",
-    comfort: "Use softer transitions and more human-centered cues to improve comfort.",
-    enchantment: "Develop more atmosphere, depth, or memorable moments to increase enchantment.",
-    serenity: "Simplify the overall visual field to produce a quieter emotional reading.",
-    admiration: "Refine proportion, hierarchy, or signature moments so the design feels more intentional."
+    security: "Clarify organization, hierarchy, and enclosure so the project feels more stable and reassuring.",
+    enchantment: "Develop layered atmosphere, depth, and memorable spatial moments.",
+    admiration: "Refine proportion, hierarchy, and structural expression so the architecture feels more impressive."
   };
   return map[name];
 }
 
 function addGoalSuggestions(suggestions, goal) {
-  if (goal.moreCalm) suggestions.push("Strengthen visual breathing space and reduce unnecessary contrast to support calm.");
-  if (goal.moreJoy) suggestions.push("Use brighter, warmer experiential cues to support a more joyful atmosphere.");
-  if (goal.moreInspiration) suggestions.push("Increase conceptual boldness through stronger hierarchy, rhythm, or signature form.");
-  if (goal.moreSecurity) suggestions.push("Make circulation, hierarchy, and enclosure feel clearer and more reliable.");
-  if (goal.moreComfort) suggestions.push("Introduce softer transitions and a more human-centered language.");
-  if (goal.moreEnchantment) suggestions.push("Use layered depth, atmosphere, and memorable moments to increase enchantment.");
-  if (goal.moreSerenity) suggestions.push("Reduce visual noise and create a more controlled, contemplative reading.");
-  if (goal.moreAdmiration) suggestions.push("Develop one or two memorable moves that elevate the architectural presence.");
+  if (goal.moreCalm) suggestions.push("Strengthen spatial breathing and soften material contrasts to cultivate calm.");
+  if (goal.moreJoy) suggestions.push("Activate warmer light and material gestures to make the architecture feel more inviting.");
+  if (goal.moreInspiration) suggestions.push("Clarify bold formal moves and compositional tension so the design feels more memorable.");
+  if (goal.moreSecurity) suggestions.push("Reinforce hierarchy, enclosure, and circulation logic so the architecture feels more grounded.");
+  if (goal.moreEnchantment) suggestions.push("Develop layered atmosphere, depth, and spatial richness to elevate the emotional narrative.");
+  if (goal.moreAdmiration) suggestions.push("Refine proportion, hierarchy, and structural expression so the architecture feels more impressive.");
 }
+
 
 function parseDesiredOutcome(text = "") {
   const lower = text.toLowerCase();
@@ -575,9 +541,7 @@ function parseDesiredOutcome(text = "") {
     moreJoy: lower.includes("more joy") || lower.includes("plus de joie") || lower.includes("more joyful"),
     moreInspiration: lower.includes("more inspiration") || lower.includes("plus d'inspiration") || lower.includes("more inspiring"),
     moreSecurity: lower.includes("more security") || lower.includes("plus de sécurité") || lower.includes("safer"),
-    moreComfort: lower.includes("more comfort") || lower.includes("plus de confort") || lower.includes("more comfortable"),
     moreEnchantment: lower.includes("more enchantment") || lower.includes("plus d'enchantement") || lower.includes("more poetic"),
-    moreSerenity: lower.includes("more serenity") || lower.includes("plus de sérénité") || lower.includes("more serene"),
     moreAdmiration: lower.includes("more admiration") || lower.includes("plus d'admiration") || lower.includes("more impressive"),
     hasGoal: lower.trim().length > 0,
     raw: text

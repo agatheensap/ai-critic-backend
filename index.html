@@ -1,0 +1,2460 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Architectural Critic</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f3f1ec;
+      --surface: rgba(255, 255, 255, 0.72);
+      --surface-strong: rgba(255, 255, 255, 0.88);
+      --text: #161616;
+      --muted: #6b6b6b;
+      --line: rgba(22, 22, 22, 0.08);
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+    }
+
+    * { box-sizing: border-box; }
+    * { min-width: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      transition: background-color 0.3s ease, color 0.3s ease;
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.9), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(0,0,0,0.03), transparent 30%),
+        var(--bg);
+      color: var(--text);
+      padding: 32px 18px 60px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 30px 0 18px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.55);
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .hero-copy h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(40px, 6vw, 72px);
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      margin: 0 0 18px;
+      font-weight: 600;
+    }
+
+    .hero-copy p {
+      max-width: 720px;
+      font-size: 18px;
+      line-height: 1.65;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .hero-panel {
+      background: var(--surface);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.45);
+      border-radius: var(--radius-xl);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-panel-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .hero-panel-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
+    .hero-dot {
+      width: 10px;
+      height: 10px;
+      background: #111;
+      border-radius: 999px;
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .mini-card {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.78);
+      border: 1px solid rgba(22,22,22,0.06);
+    }
+
+    .mini-card-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .mini-card-value {
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--surface);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .panel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.15);
+    }
+
+    .panel-inner {
+      padding: 24px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      margin: 0 0 12px;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 600;
+    }
+
+    .panel-desc {
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .upload-box {
+      border: 1px dashed rgba(22,22,22,0.18);
+      border-radius: 22px;
+      padding: 22px;
+      background: rgba(255,255,255,0.5);
+      margin-bottom: 18px;
+    }
+
+    .upload-box input[type="file"],
+    .upload-box select {
+      width: 100%;
+      padding: 14px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      cursor: pointer;
+    }
+
+    .label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #222;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 1.5;
+      resize: vertical;
+      background: rgba(255,255,255,0.9);
+      color: var(--text);
+      outline: none;
+    }
+
+    textarea:focus,
+    input[type="file"]:focus,
+    select:focus {
+      border-color: rgba(22,22,22,0.25);
+      box-shadow: 0 0 0 4px rgba(0,0,0,0.04);
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .btn {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      background: #111;
+      color: white;
+      padding: 16px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease, background-color 0.2s ease;
+      margin-top: 18px;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .preview-card {
+      margin-top: 18px;
+      border-radius: 22px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(22,22,22,0.06);
+      min-height: 220px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .preview-item {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(22,22,22,0.1);
+      background: #f8f8f8;
+      flex: 0 0 auto;
+    }
+
+    .preview-item img {
+      position: relative;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .emotional-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      width: 100%;
+      height: 100%;
+      opacity: 0.55;
+      z-index: 1;
+      background: transparent;
+      mix-blend-mode: normal;
+    }
+
+    .transformation-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      width: 100%;
+      height: 100%;
+      opacity: 1;
+      z-index: 3;
+      background: transparent;
+      mix-blend-mode: normal;
+    }
+
+    .preview-item .file-name {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      font-size: 10px;
+      padding: 2px 4px;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      z-index: 4;
+    }
+
+    .history-section {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(22,22,22,0.08);
+    }
+
+    .history-section h3 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #222;
+    }
+
+    .history-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.6);
+      border: 1px solid rgba(22,22,22,0.06);
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .history-item:hover {
+      background: rgba(255,255,255,0.8);
+    }
+
+    .history-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .history-item-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #222;
+      margin-bottom: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-item-meta {
+      font-size: 11px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-item-actions {
+      display: flex;
+      gap: 6px;
+      margin-left: 8px;
+    }
+
+    .history-btn {
+      padding: 4px 8px;
+      border: none;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .history-btn.load {
+      background: rgba(59, 130, 246, 0.15);
+      color: #2563eb;
+    }
+
+    .history-btn.load:hover {
+      background: rgba(59, 130, 246, 0.25);
+    }
+
+    .history-btn.delete {
+      background: rgba(239, 68, 68, 0.15);
+      color: #b91c1c;
+    }
+
+    .history-btn.delete:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .history-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    .status {
+      margin-top: 18px;
+      min-height: 24px;
+      font-size: 14px;
+      color: #222;
+      font-weight: 600;
+    }
+
+    .results {
+      display: none;
+    }
+
+    .results-top {
+      padding: 24px 24px 6px;
+      border-bottom: 1px solid rgba(22,22,22,0.05);
+      background: rgba(255,255,255,0.38);
+    }
+
+    .results-top h2 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    .results-top p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .results-body {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+      grid-template-areas:
+        "meta meta"
+        "chart scores"
+        "comparison comparison"
+        "content content"
+        "suggestions suggestions";
+      gap: 20px;
+      align-items: start;
+    }
+
+    .results-body > .analysis-meta {
+      grid-area: meta;
+    }
+
+    .results-body > .chart-panel {
+      grid-area: chart;
+    }
+
+    .results-body > .scores {
+      grid-area: scores;
+    }
+
+    .results-body > .content-grid {
+      grid-area: content;
+    }
+
+    .results-body > #suggestionsCard {
+      grid-area: suggestions;
+    }
+
+    .results-body > #comparisonCard {
+      grid-area: comparison;
+    }
+
+    .chart-panel {
+      background: var(--surface-strong);
+      border: 1px solid rgba(22,22,22,0.05);
+      border-radius: 24px;
+      padding: 18px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .chart-panel h3 {
+      margin: 0 0 14px;
+      font-size: 16px;
+      text-align: left;
+    }
+
+    .chart-wrap {
+      height: clamp(280px, 34vw, 340px);
+      position: relative;
+    }
+
+    .chart-explanation {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .chart-explanation strong {
+      color: #1f2937;
+    }
+
+    .suggestion-intro {
+      margin: 0 0 12px;
+      font-size: 14px;
+      color: #374151;
+      line-height: 1.7;
+    }
+
+    .suggestion-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+      font-size: 15px;
+      color: #1f2937;
+      line-height: 1.65;
+      overflow-wrap: anywhere;
+    }
+
+    .suggestion-pill {
+      flex-shrink: 0;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
+    }
+
+    .suggestion-pill.correction {
+      background: rgba(239, 68, 68, 0.12);
+      color: #b91c1c;
+    }
+
+    .suggestion-pill.opportunity {
+      background: rgba(34, 197, 94, 0.14);
+      color: #047857;
+    }
+
+    .suggestion-pill.guidance {
+      background: rgba(234, 179, 8, 0.14);
+      color: #b45309;
+    }
+
+    .scores {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      align-content: stretch;
+      width: 100%;
+    }
+
+    .score-card {
+      background: var(--surface-strong);
+      border: 1px solid rgba(22,22,22,0.05);
+      border-radius: 20px;
+      padding: 18px 14px;
+      text-align: center;
+      min-height: 132px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .score-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .score-value {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .score-unit {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .content-card {
+      background: var(--surface-strong);
+      border: 1px solid rgba(22,22,22,0.05);
+      border-radius: 24px;
+      padding: 18px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .content-card h3 {
+      margin: 0 0 12px;
+      text-align: left;
+      font-size: 16px;
+    }
+
+    .content-card p,
+    .content-card li {
+      color: #2b2b2b;
+      line-height: 1.7;
+      font-size: 15px;
+      overflow-wrap: anywhere;
+    }
+
+    .content-card p {
+      margin: 0;
+    }
+
+    .content-card ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .comparison-table-container {
+      overflow-x: auto;
+      margin-top: 16px;
+      width: 100%;
+    }
+
+    .comparison-table {
+      width: 100%;
+      min-width: 620px;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      border: 1px solid rgba(22,22,22,0.08);
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .comparison-table th {
+      background: rgba(22,22,22,0.04);
+      color: #111;
+      font-weight: 700;
+    }
+
+    .comparison-table td:first-child,
+    .comparison-table th:first-child {
+      text-align: left;
+    }
+
+    .comparison-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .comparison-detail-card {
+      background: var(--surface-strong);
+      border: 1px solid rgba(22,22,22,0.05);
+      border-radius: 20px;
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .comparison-detail-card h4 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    .comparison-detail-card p {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: #333;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+
+    .analysis-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .meta-card {
+      background: var(--surface-strong);
+      border: 1px solid rgba(22,22,22,0.05);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .meta-value {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    @media (max-width: 1080px) {
+      .hero-grid,
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .results-body {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "meta"
+          "chart"
+          "scores"
+          "comparison"
+          "content"
+          "suggestions";
+      }
+
+      .scores {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #3b82f6, #22c55e, #f97316);
+      width: 0%;
+      z-index: 1000;
+      animation: progress 2s ease-in-out;
+    }
+
+    @keyframes progress {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
+    }
+
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+      border-bottom: 1px dotted rgba(22, 22, 22, 0.3);
+    }
+
+    .tooltip .tooltip-text {
+      visibility: hidden;
+      width: 200px;
+      background-color: #111;
+      color: white;
+      text-align: center;
+      border-radius: 6px;
+      padding: 8px;
+      position: absolute;
+      z-index: 1001;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -100px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .tooltip .tooltip-text::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: #111 transparent transparent transparent;
+    }
+
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .export-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+
+    .export-btn {
+      flex: 1;
+      min-width: 140px;
+      padding: 12px 16px;
+      font-size: 14px;
+      border: 1px solid var(--line);
+      background: var(--surface-strong);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .export-btn:hover {
+      background: var(--line);
+      transform: translateY(-1px);
+    }
+
+    .score-card {
+      animation: popIn 0.4s ease-out;
+    }
+
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .content-card {
+      animation: fadeSlideIn 0.5s ease-out;
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 20px 12px 40px;
+      }
+
+      .hero-copy h1 {
+        font-size: 42px;
+      }
+
+      .panel-inner,
+      .results-top,
+      .results-body {
+        padding: 16px;
+      }
+
+      .chart-wrap {
+        height: 280px;
+      }
+
+      .analysis-meta {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .scores {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .score-card {
+        min-height: 118px;
+        padding: 16px 10px;
+      }
+
+      .export-buttons {
+        flex-direction: column;
+      }
+
+      .export-btn {
+        min-width: 100%;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .analysis-meta,
+      .scores,
+      .hero-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-wrap {
+        height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress-bar" id="progressBar"></div>
+  <div class="page">
+    <section class="hero">
+      <span class="eyebrow" data-i18n="eyebrow">Architectural Emotion Intelligence</span>
+
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <h1 data-i18n="title">Critique architecture through emotion.</h1>
+        </div>
+
+        <div class="hero-panel">
+          <div class="hero-panel-top">
+            <div class="hero-panel-title" data-i18n="capabilities">Prototype capabilities</div>
+            <div class="hero-dot"></div>
+          </div>
+
+          <div class="hero-stats">
+            <div class="mini-card">
+              <div class="mini-card-label">Input</div>
+              <div class="mini-card-value">Image + Type</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-card-label">Output</div>
+              <div class="mini-card-value">6 Emotional Scores</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-card-label">Type</div>
+              <div class="mini-card-value">Images / Photos</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-card-label">Goal</div>
+              <div class="mini-card-value">Targeted Emotion</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell">
+      <div class="panel">
+        <div class="panel-inner">
+          <div class="section-title">Input</div>
+          <h2>Upload a project and define an emotional intention</h2>
+          <div class="upload-box">
+            <label class="label" for="imageUpload">Architectural images</label>
+            <input type="file" id="imageUpload" accept="image/*" multiple />
+          </div>
+
+          <label class="label" for="desiredOutcome">Desired emotional outcome</label>
+          <textarea
+            id="desiredOutcome"
+            placeholder="Example: I want this design to feel more calm, more admiration, and more inspiration."
+          ></textarea>
+          <div class="hint">
+            Example goals: more calm, more joy, more inspiration, more security, more enchantment, more admiration.
+          </div>
+
+          <button id="analyzeBtn" class="btn">Analyze Design</button>
+
+          <div class="status" id="status"></div>
+
+          <div class="preview-card">
+            <div id="previewContainer" class="preview-container">
+              <div id="previewPlaceholder" class="preview-placeholder">
+                Your uploaded images will appear here.<br />
+                Use renders, interior scenes, and photographs from your project.
+              </div>
+            </div>
+          </div>
+
+          <div class="history-section">
+            <h3>Analysis History</h3>
+            <div id="historyList" class="history-list">
+              <div class="history-empty">No analyses yet. Upload images and analyze to see history here.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel results" id="results">
+        <div class="results-top">
+          <div class="section-title">Output</div>
+          <h2>Emotional Analysis</h2>
+          <p>
+            The platform maps the emotional character of the project and translates it into design-oriented feedback.
+          </p>
+          <div class="export-buttons">
+            <button id="downloadPdfBtn" class="export-btn" disabled title="Export analysis as PDF report">
+              📄 PDF Report
+            </button>
+            <button id="downloadJsonBtn" class="export-btn" disabled title="Export analysis as JSON data">
+              📊 JSON Data
+            </button>
+          </div>
+        </div>
+
+        <div class="results-body">
+          <div class="analysis-meta">
+            <div class="meta-card">
+              <div class="meta-label">Brightness</div>
+              <div class="meta-value" id="metaBrightness">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Contrast</div>
+              <div class="meta-value" id="metaContrast">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Warmth</div>
+              <div class="meta-value" id="metaWarmth">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Saturation</div>
+              <div class="meta-value" id="metaSaturation">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Hue</div>
+              <div class="meta-value" id="metaHue">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Lightness</div>
+              <div class="meta-value" id="metaLightness">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Sharpness</div>
+              <div class="meta-value" id="metaSharpness">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Entropy</div>
+              <div class="meta-value" id="metaEntropy">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Unique Colors</div>
+              <div class="meta-value" id="metaUniqueColors">0</div>
+            </div>
+          </div>
+
+          <div class="chart-panel">
+            <h3>Emotional spectrum</h3>
+            <div class="chart-wrap">
+              <canvas id="chart"></canvas>
+            </div>
+            <div class="chart-explanation"></div>
+          </div>
+
+          <div class="content-card" id="comparisonCard" style="display:none;">
+            <h3>Image Comparison</h3>
+            <div id="comparisonTableContainer" class="comparison-table-container"></div>
+            <div id="comparisonDetailsContainer" class="comparison-details"></div>
+          </div>
+
+          <div class="scores">
+            <div class="score-card"><div class="score-label">Calm</div><div class="score-value" id="calm">0</div><div class="score-unit">%</div></div>
+            <div class="score-card"><div class="score-label">Joy</div><div class="score-value" id="joy">0</div><div class="score-unit">%</div></div>
+            <div class="score-card"><div class="score-label">Inspiration</div><div class="score-value" id="inspiration">0</div><div class="score-unit">%</div></div>
+            <div class="score-card"><div class="score-label">Security</div><div class="score-value" id="security">0</div><div class="score-unit">%</div></div>
+            <div class="score-card"><div class="score-label">Enchantment</div><div class="score-value" id="enchantment">0</div><div class="score-unit">%</div></div>
+            <div class="score-card"><div class="score-label">Admiration</div><div class="score-value" id="admiration">0</div><div class="score-unit">%</div></div>
+          </div>
+
+          <div class="content-grid">
+            <div class="content-card">
+              <h3>Summary</h3>
+              <p id="summaryText"></p>
+            </div>
+
+            <div class="content-card">
+              <h3>Goal-Oriented Interpretation</h3>
+              <p id="goalResponseText"></p>
+            </div>
+          </div>
+
+          <div class="content-card" id="suggestionsCard">
+            <h3>Design Suggestions</h3>
+            <ul id="suggestionsList"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Multi-language support
+    const translations = {
+      en: {
+        eyebrow: 'Architectural Emotion Intelligence',
+        title: 'Critique architecture through emotion.',
+        capabilities: 'Prototype capabilities',
+        input: 'Input',
+        imageType: 'Image + Type',
+        output: 'Output',
+        emotionalScores: '6 Emotional Scores',
+        modes: 'Modes',
+        modesValue: 'Render / Plan / Section',
+        goal: 'Goal',
+        goalValue: 'Targeted Emotion',
+        inputLabel: 'Input',
+        uploadTitle: 'Upload a project and define an emotional intention',
+        imageTypeLabel: 'Image type',
+        render: 'Render / Photo',
+        plan: 'Plan',
+        section: 'Section / Elevation',
+        renderHint: 'This mode reads atmosphere, light, warmth, contrast, and mood in renders and photographs.',
+        planHint: 'This mode reads graphic clarity, hierarchy, density, and spatial legibility rather than atmospheric mood.',
+        sectionHint: 'This mode reads vertical rhythm, structure, depth, and compositional order in sections and elevations.',
+        imageLabel: 'Architectural images',
+        desiredOutcome: 'Desired emotional outcome',
+        desiredPlaceholder: 'Example: I want this design to feel more calm, more admiration, and more inspiration.',
+        hint: 'Example goals: more calm, more joy, more inspiration, more security, more enchantment, more admiration.',
+        analyzeBtn: 'Analyze Design',
+        previewPlaceholder: 'Your uploaded images will appear here.\nUse renders, interior scenes, and photographs from your project.',
+        historyTitle: 'Analysis History',
+        historyEmpty: 'No analyses yet. Upload images and analyze to see history here.',
+        outputLabel: 'Output',
+        emotionalAnalysis: 'Emotional Analysis',
+        analysisDesc: 'The platform maps the emotional character of the project and translates it into design-oriented feedback.',
+        pdfBtn: '📄 PDF Report',
+        jsonBtn: '📊 JSON Data',
+        emotionalSpectrum: 'Emotional spectrum',
+        comparison: 'Image Comparison',
+        brightness: 'Brightness',
+        contrast: 'Contrast',
+        warmth: 'Warmth',
+        saturation: 'Saturation',
+        hue: 'Hue',
+        lightness: 'Lightness',
+        sharpness: 'Sharpness',
+        entropy: 'Entropy',
+        uniqueColors: 'Unique Colors',
+        calm: 'Calm',
+        joy: 'Joy',
+        inspiration: 'Inspiration',
+        security: 'Security',
+        enchantment: 'Enchantment',
+        admiration: 'Admiration',
+        summary: 'Summary',
+        goalInterpretation: 'Goal-Oriented Interpretation',
+        designSuggestions: 'Design Suggestions',
+      }
+    };
+    function t(key) {
+      return translations['en'][key] || key;
+    }
+
+    function updateUILanguage() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
+      });
+    }
+
+    updateUILanguage();
+
+    console.log("Script loaded");
+
+    // Progress bar
+    function showProgressBar() {
+      const progressBar = document.getElementById('progressBar');
+      progressBar.style.display = 'block';
+      progressBar.style.width = '30%';
+    }
+
+    function hideProgressBar() {
+      const progressBar = document.getElementById('progressBar');
+      progressBar.style.width = '100%';
+      setTimeout(() => {
+        progressBar.style.display = 'none';
+        progressBar.style.width = '0%';
+      }, 500);
+    }
+
+    const BACKEND_URL = window.location.origin;
+    const imageInput = document.getElementById("imageUpload");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const desiredOutcomeInput = document.getElementById("desiredOutcome");
+    const statusEl = document.getElementById("status");
+    const previewImage = document.getElementById("previewImage");
+    const previewPlaceholder = document.getElementById("previewPlaceholder");
+    const previewContainer = document.getElementById("previewContainer");
+    const resultsEl = document.getElementById("results");
+    const downloadPdfBtn = document.getElementById("downloadPdfBtn");
+    const downloadJsonBtn = document.getElementById("downloadJsonBtn");
+
+    let latestAnalysis = null;
+    let chartInstance = null;
+    let currentImages = []; // Array of {file, base64, features, analysis}
+    const MAX_UPLOAD_IMAGES = 4;
+
+    // Initialize history display
+    updateHistoryDisplay();
+
+    imageInput.addEventListener("change", () => {
+      console.log("File input changed, files:", imageInput.files.length);
+      const files = Array.from(imageInput.files);
+      if (files.length === 0) return;
+      if (files.length > MAX_UPLOAD_IMAGES) {
+        currentImages = [];
+        imageInput.value = "";
+        previewContainer.innerHTML = '';
+        previewPlaceholder.style.display = "block";
+        resultsEl.style.display = "none";
+        latestAnalysis = null;
+        downloadPdfBtn.disabled = true;
+        downloadJsonBtn.disabled = true;
+        analyzeBtn.disabled = true;
+        statusEl.textContent = "Maximum 4 images allowed.";
+        return;
+      }
+
+      currentImages = [];
+      previewContainer.innerHTML = '';
+      previewPlaceholder.style.display = "block";
+      resultsEl.style.display = "none";
+      statusEl.textContent = "Reading image features...";
+      latestAnalysis = null;
+      downloadPdfBtn.disabled = true;
+      analyzeBtn.disabled = true;
+
+      // Process each file
+      const promises = files.map((file, index) => {
+        console.log(`Processing file ${index}: ${file.name}`);
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = async function (event) {
+            console.log(`File loaded: ${file.name}`);
+            const base64 = event.target.result;
+
+            // Create preview element
+            const previewItem = document.createElement('div');
+            previewItem.className = 'preview-item';
+
+            const img = document.createElement('img');
+            img.src = base64;
+            img.alt = file.name;
+
+            const overlayCanvas = document.createElement('canvas');
+            overlayCanvas.className = 'emotional-overlay';
+            overlayCanvas.width = 120;
+            overlayCanvas.height = 120;
+
+            const transformationCanvas = document.createElement('canvas');
+            transformationCanvas.className = 'transformation-overlay';
+            transformationCanvas.width = 120;
+            transformationCanvas.height = 120;
+
+            const fileName = document.createElement('div');
+            fileName.className = 'file-name';
+            fileName.textContent = file.name;
+
+            previewItem.appendChild(img);
+            previewItem.appendChild(overlayCanvas);
+            previewItem.appendChild(transformationCanvas);
+            previewItem.appendChild(fileName);
+            previewContainer.appendChild(previewItem);
+
+            console.log(`Preview item created for ${file.name}, children:`, previewItem.children.length);
+            console.log('Transformation canvas in DOM:', document.querySelectorAll('.transformation-overlay').length);
+
+            try {
+              const features = await extractImageFeatures(base64);
+              currentImages[index] = { file, base64, features };
+            } catch (error) {
+              console.error(`Error processing ${file.name}:`, error);
+              currentImages[index] = { file, base64, features: null };
+              previewItem.style.opacity = '0.5';
+            }
+            resolve();
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      Promise.all(promises).then(() => {
+        previewPlaceholder.style.display = "none";
+        const validImages = currentImages.filter(img => img.features);
+        statusEl.textContent = `${validImages.length} of ${files.length} image(s) ready for analysis.`;
+        if (validImages.length > 0) {
+          analyzeBtn.disabled = false;
+        }
+      });
+    });
+
+    analyzeBtn.addEventListener("click", analyzeImage);
+    downloadPdfBtn.addEventListener("click", downloadPdfReport);
+    downloadJsonBtn.addEventListener("click", downloadJsonReport);
+
+    // Keyboard shortcut: Ctrl+Enter to analyze
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !analyzeBtn.disabled) {
+        analyzeImage();
+      }
+    });
+
+    async function analyzeImage() {
+      if (currentImages.length === 0) {
+        alert("Please upload images first.");
+        return;
+      }
+
+      analyzeBtn.disabled = true;
+      showProgressBar();
+      statusEl.textContent = "Analyzing images...";
+      resultsEl.style.display = "none";
+
+      try {
+        const desiredOutcome = desiredOutcomeInput.value.trim();
+        // Analyze each image
+        const analysisPromises = currentImages.map(async (imageData, index) => {
+          if (!imageData.features) return null;
+
+          const response = await fetch(`${BACKEND_URL}/analyze`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              imageBase64: imageData.base64,
+              imageType: "render",
+              desiredOutcome,
+              visualFeatures: imageData.features
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Analysis failed for image ${index + 1}: ${errorData.details || errorData.error}`);
+          }
+
+          const result = await response.json();
+          result.imageName = imageData.file?.name || `Image ${index + 1}`;
+          result.imageIndex = index + 1;
+          imageData.analysis = result;
+          return result;
+        });
+
+        const results = await Promise.all(analysisPromises);
+        const validResults = results.filter(r => r !== null);
+
+        if (validResults.length === 0) {
+          throw new Error("No images could be analyzed");
+        }
+
+        if (validResults.length > 1) {
+          latestAnalysis = aggregateAnalyses(validResults, currentImages, desiredOutcome);
+        } else {
+          latestAnalysis = {
+            ...validResults[0],
+            desiredOutcome,
+            goalResponse: getGoalResponseOrFallback(validResults[0], desiredOutcome)
+          };
+        }
+
+        updateResults(latestAnalysis);
+        statusEl.textContent = "Analysis complete.";
+        resultsEl.style.display = "block";
+        resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = "Error: " + error.message;
+      } finally {
+        analyzeBtn.disabled = false;
+        hideProgressBar();
+      }
+    }
+
+    function aggregateAnalyses(analyses, images, desiredOutcome = desiredOutcomeInput.value.trim()) {
+      if (analyses.length === 1) return analyses[0];
+
+      // Average emotional scores
+      const emotions = ['calm', 'joy', 'inspiration', 'security', 'enchantment', 'admiration'];
+      const aggregatedEmotions = {};
+
+      emotions.forEach(emotion => {
+        const sum = analyses.reduce((acc, analysis) => acc + (analysis[emotion] || 0), 0);
+        aggregatedEmotions[emotion] = Math.round(sum / analyses.length);
+      });
+
+      // Average visual features
+      const features = ['brightness', 'contrast', 'warmth', 'saturation', 'hue', 'lightness', 'sharpness', 'entropy', 'uniqueColors'];
+      const aggregatedFeatures = {};
+
+      features.forEach(feature => {
+        const sum = analyses.reduce((acc, analysis) => acc + (analysis.visualFeatures?.[feature] || 0), 0);
+        aggregatedFeatures[feature] = Math.round(sum / analyses.length);
+      });
+
+      // Combine summaries
+      const summaries = analyses.map(a => a.summary).filter(s => s);
+      const combinedSummary = summaries.length > 0 ? summaries.join(' ') : 'Analysis of multiple images completed.';
+
+      // Combine suggestions
+      const allSuggestions = analyses.flatMap(a => a.suggestions || []);
+      const uniqueSuggestions = [...new Set(allSuggestions)].slice(0, 6);
+
+      const aggregateForGoal = {
+        ...aggregatedEmotions,
+        desiredOutcome
+      };
+      const goalResponse = getGoalResponseOrFallback(aggregateForGoal, desiredOutcome);
+
+      return {
+        ...aggregatedEmotions,
+        summary: combinedSummary,
+        goalResponse: goalResponse,
+        suggestions: uniqueSuggestions,
+        visualFeatures: aggregatedFeatures,
+        imageType: analyses[0]?.imageType,
+        individualAnalyses: analyses,
+        images: images,
+        imageCount: analyses.length,
+        desiredOutcome,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    function getGoalResponseOrFallback(analysis, desiredOutcome = desiredOutcomeInput.value.trim()) {
+      if (analysis?.goalResponse && analysis.goalResponse.trim()) {
+        return analysis.goalResponse;
+      }
+
+      if (!desiredOutcome.trim()) {
+        return "No specific emotional goal was provided. The recommendations therefore respond mainly to the current emotional profile of the project.";
+      }
+
+      return buildGoalResponseFromScores(desiredOutcome, analysis || {});
+    }
+
+    function buildGoalResponseFromScores(desiredOutcome, scores = {}) {
+      const text = desiredOutcome.toLowerCase();
+      const messages = [];
+
+      if (text.includes("more calm") || text.includes("calmer")) {
+        messages.push((scores.calm || 0) >= 70 ? "The project already reads as relatively calm, so refinement should preserve clarity while deepening control." : "To increase calm, the design should reduce visual friction and simplify competing signals.");
+      }
+      if (text.includes("more joy") || text.includes("more joyful")) messages.push("To increase joy, the design should feel brighter, warmer, and more open to positive experiential moments.");
+      if (text.includes("more inspiration") || text.includes("more inspiring")) messages.push("To increase inspiration, the design should strengthen conceptual boldness, contrast, or memorable spatial ideas.");
+      if (text.includes("more security") || text.includes("safer")) messages.push("To reinforce security, the design should become more legible, stable, and reassuring.");
+      if (text.includes("more enchantment") || text.includes("more poetic")) messages.push("To increase enchantment, the project should develop more atmosphere, depth, and emotional staging.");
+      if (text.includes("more admiration") || text.includes("more impressive")) messages.push("To increase admiration, the architecture should feel more resolved, more distinctive, and more compositionally intentional.");
+
+      return messages.length > 0
+        ? messages.join(" ")
+        : `The desired emotional outcome is "${desiredOutcome}". The design should align its visual language more clearly with that intention.`;
+    }
+
+    // History management functions
+    function saveAnalysisToHistory(analysis) {
+      const history = getAnalysisHistory();
+      const metrics = analysis.individualAnalyses ? computeAggregateMetrics(analysis) : analysis;
+      const historyItem = {
+        id: Date.now().toString(),
+        timestamp: analysis.timestamp || new Date().toISOString(),
+        imageCount: analysis.imageCount || currentImages.length,
+        imageType: "render",
+        desiredOutcome: analysis.desiredOutcome || desiredOutcomeInput.value.trim(),
+        summary: analysis.summary || (analysis.individualAnalyses ? `Comparison of ${analysis.individualAnalyses.length} images.` : ""),
+        calm: metrics.calm,
+        joy: metrics.joy,
+        inspiration: metrics.inspiration,
+        security: metrics.security,
+        enchantment: metrics.enchantment,
+        admiration: metrics.admiration,
+        suggestions: analysis.suggestions,
+        goalResponse: getGoalResponseOrFallback(analysis, analysis.desiredOutcome || desiredOutcomeInput.value.trim()),
+        visualFeatures: metrics.visualFeatures,
+        individualAnalyses: analysis.individualAnalyses,
+        fromComparison: Array.isArray(analysis.individualAnalyses)
+      };
+
+      history.unshift(historyItem); // Add to beginning
+      if (history.length > 10) history.splice(10); // Keep only last 10
+      localStorage.setItem('ai-architect-history', JSON.stringify(history));
+      updateHistoryDisplay();
+    }
+
+    function getAnalysisHistory() {
+      try {
+        const stored = localStorage.getItem('ai-architect-history');
+        return stored ? JSON.parse(stored) : [];
+      } catch (error) {
+        console.error('Error loading history:', error);
+        return [];
+      }
+    }
+
+    function loadAnalysisFromHistory(historyItem) {
+      // Update form values
+      desiredOutcomeInput.value = historyItem.desiredOutcome;
+
+      // Update results
+      const analysisData = {
+        ...historyItem,
+        goalResponse: getGoalResponseOrFallback(historyItem, historyItem.desiredOutcome || ""),
+        fromHistory: true
+      };
+      latestAnalysis = analysisData;
+      updateResults(analysisData);
+      resultsEl.style.display = "block";
+      resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function deleteAnalysisFromHistory(id) {
+      const history = getAnalysisHistory();
+      const filtered = history.filter(item => item.id !== id);
+      localStorage.setItem('ai-architect-history', JSON.stringify(filtered));
+      updateHistoryDisplay();
+    }
+
+    function loadHistoryItem(button) {
+      const historyItem = JSON.parse(decodeURIComponent(button.closest('.history-item').dataset.historyItem));
+      loadAnalysisFromHistory(historyItem);
+    }
+
+    function deleteHistoryItem(id) {
+      deleteAnalysisFromHistory(id);
+    }
+
+    function updateHistoryDisplay() {
+      const historyList = document.getElementById('historyList');
+      const history = getAnalysisHistory();
+
+      if (history.length === 0) {
+        historyList.innerHTML = '<div class="history-empty">No analyses yet. Upload images and analyze to see history here.</div>';
+        return;
+      }
+
+      historyList.innerHTML = history.map(item => {
+        const date = new Date(item.timestamp).toLocaleDateString();
+        const time = new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const title = item.desiredOutcome ? item.desiredOutcome.substring(0, 40) + (item.desiredOutcome.length > 40 ? '...' : '') : 'No specific goal';
+        const meta = `${date} ${time} • ${item.imageCount} image${item.imageCount > 1 ? 's' : ''} • ${item.imageType}`;
+
+        return `
+          <div class="history-item" data-history-item="${encodeURIComponent(JSON.stringify(item))}">
+            <div class="history-item-info">
+              <div class="history-item-title">${title}</div>
+              <div class="history-item-meta">${meta}</div>
+            </div>
+            <div class="history-item-actions">
+              <button class="history-btn load" onclick="loadHistoryItem(this)">Load</button>
+              <button class="history-btn delete" onclick="deleteHistoryItem('${item.id}')">×</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function rgbToHsl(r, g, b) {
+      r /= 255;
+      g /= 255;
+      b /= 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+
+      if (max === min) {
+        h = s = 0; // achromatic
+      } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+
+      return { h: h * 360, s: s * 100, l: l * 100 };
+    }
+
+    async function extractImageFeatures(dataUrl) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+
+        img.onload = function () {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+          const maxSize = 200;
+          const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+          canvas.width = Math.max(1, Math.floor(img.width * ratio));
+          canvas.height = Math.max(1, Math.floor(img.height * ratio));
+
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+          let totalBrightness = 0;
+          let totalWarmth = 0;
+          let totalSaturation = 0;
+          let brightnessSquares = 0;
+          let totalHue = 0;
+          let totalLightness = 0;
+          let totalEdge = 0;
+          let colorMap = new Map();
+          let count = 0;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+
+            const brightness = (r + g + b) / 3;
+            totalBrightness += brightness;
+            brightnessSquares += brightness * brightness;
+
+            const warmth = r - b;
+            totalWarmth += warmth;
+
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            const saturation = max === 0 ? 0 : (max - min) / max;
+            totalSaturation += saturation;
+
+            // HSL conversion
+            const hsl = rgbToHsl(r, g, b);
+            totalHue += hsl.h;
+            totalLightness += hsl.l;
+
+            // Unique colors
+            const colorKey = `${r},${g},${b}`;
+            colorMap.set(colorKey, (colorMap.get(colorKey) || 0) + 1);
+
+            count++;
+          }
+
+          // Compute edge density (sharpness)
+          for (let y = 0; y < canvas.height; y++) {
+            for (let x = 0; x < canvas.width; x++) {
+              const idx = (y * canvas.width + x) * 4;
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+
+              // Compare with right neighbor
+              if (x < canvas.width - 1) {
+                const rightIdx = (y * canvas.width + (x + 1)) * 4;
+                totalEdge += Math.abs(r - data[rightIdx]) + Math.abs(g - data[rightIdx + 1]) + Math.abs(b - data[rightIdx + 2]);
+              }
+
+              // Compare with bottom neighbor
+              if (y < canvas.height - 1) {
+                const bottomIdx = ((y + 1) * canvas.width + x) * 4;
+                totalEdge += Math.abs(r - data[bottomIdx]) + Math.abs(g - data[bottomIdx + 1]) + Math.abs(b - data[bottomIdx + 2]);
+              }
+            }
+          }
+
+          const avgBrightness = totalBrightness / count;
+          const variance = brightnessSquares / count - avgBrightness * avgBrightness;
+          const contrast = Math.sqrt(Math.max(variance, 0));
+          const avgWarmth = totalWarmth / count;
+          const avgSaturation = totalSaturation / count;
+          const avgHue = totalHue / count;
+          const avgLightness = totalLightness / count;
+          const edgeDensity = totalEdge / (count * 2); // average per pixel per direction
+          const uniqueColors = colorMap.size;
+
+          // Compute color entropy
+          let entropy = 0;
+          for (const freq of colorMap.values()) {
+            const p = freq / count;
+            entropy -= p * Math.log2(p);
+          }
+          const maxEntropy = Math.log2(uniqueColors) || 1;
+          const normalizedEntropy = entropy / maxEntropy;
+
+          resolve({
+            brightness: normalize(avgBrightness, 0, 255),
+            contrast: normalize(contrast, 0, 128),
+            warmth: normalize(avgWarmth, -255, 255),
+            saturation: normalize(avgSaturation, 0, 1),
+            hue: normalize(avgHue, 0, 360),
+            lightness: normalize(avgLightness, 0, 100),
+            sharpness: normalize(edgeDensity, 0, 255), // rough normalization
+            entropy: normalizedEntropy,
+            uniqueColors: normalize(uniqueColors, 0, canvas.width * canvas.height)
+          });
+        };
+
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
+    function normalize(value, min, max) {
+      const clamped = Math.max(min, Math.min(max, value));
+      return Math.round(((clamped - min) / (max - min)) * 100);
+    }
+
+    async function downloadJsonReport() {
+      if (!latestAnalysis) {
+        alert("Please analyze a design first.");
+        return;
+      }
+
+      try {
+        downloadJsonBtn.disabled = true;
+        downloadJsonBtn.textContent = "⏳ Preparing...";
+        
+        const jsonData = {
+          timestamp: new Date().toISOString(),
+          imageType: "render",
+          desiredOutcome: desiredOutcomeInput.value.trim(),
+          analysis: latestAnalysis,
+          exportFormat: 'json-v1'
+        };
+
+        const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `analysis-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error(error);
+        alert('Error: ' + error.message);
+      } finally {
+        downloadJsonBtn.disabled = false;
+        downloadJsonBtn.textContent = '📊 JSON Data';
+      }
+    }
+
+    function buildReportImages() {
+      return currentImages
+        .filter((imageData) => imageData?.base64)
+        .map((imageData, index) => ({
+          name: imageData.file?.name || imageData.analysis?.imageName || `Image ${index + 1}`,
+          base64: imageData.base64
+        }));
+    }
+
+    async function downloadPdfReport() {
+      if (!latestAnalysis) {
+        alert("Please analyze a design first.");
+        return;
+      }
+
+      try {
+        downloadPdfBtn.disabled = true;
+        downloadPdfBtn.textContent = "⏳ Generating...";
+        const comparisonMode = Array.isArray(latestAnalysis.individualAnalyses) && latestAnalysis.individualAnalyses.length > 1;
+        const aggregateMetrics = comparisonMode ? computeAggregateMetrics(latestAnalysis) : {};
+        const reportImages = buildReportImages();
+        const reportPayload = {
+          ...latestAnalysis,
+          ...aggregateMetrics,
+          summary: latestAnalysis.summary || (comparisonMode ? `Comparison of ${latestAnalysis.individualAnalyses.length} images from the same project.` : ""),
+          goalResponse: getGoalResponseOrFallback(
+            comparisonMode ? { ...latestAnalysis, ...aggregateMetrics } : latestAnalysis,
+            latestAnalysis.desiredOutcome || desiredOutcomeInput.value.trim()
+          ),
+          suggestions: latestAnalysis.suggestions || [...new Set((latestAnalysis.individualAnalyses || []).flatMap((item) => item.suggestions || []))].slice(0, 6),
+          desiredOutcome: latestAnalysis.desiredOutcome || desiredOutcomeInput.value.trim(),
+          images: reportImages.map(({ name }) => ({ name })),
+          reportImages
+        };
+
+        const response = await fetch(`${BACKEND_URL}/report`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(reportPayload)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.details || errorData.error || "PDF generation failed");
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ai-architectural-critic-report.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error(error);
+        alert("Error: " + error.message);
+      } finally {
+        downloadPdfBtn.disabled = false;
+        downloadPdfBtn.textContent = "📄 PDF Report";
+      }
+    }
+
+    function updateResults(data) {
+      latestAnalysis = data;
+      downloadPdfBtn.disabled = false;
+      downloadJsonBtn.disabled = false;
+
+      const comparisonMode = Array.isArray(data.individualAnalyses) && data.individualAnalyses.length > 1;
+      const comparisonCard = document.getElementById("comparisonCard");
+      comparisonCard.style.display = comparisonMode ? "block" : "none";
+
+      const displayData = comparisonMode ? computeAggregateMetrics(data) : data;
+
+      document.getElementById("calm").textContent = displayData.calm ?? 0;
+      document.getElementById("joy").textContent = displayData.joy ?? 0;
+      document.getElementById("inspiration").textContent = displayData.inspiration ?? 0;
+      document.getElementById("security").textContent = displayData.security ?? 0;
+      document.getElementById("enchantment").textContent = displayData.enchantment ?? 0;
+      document.getElementById("admiration").textContent = displayData.admiration ?? 0;
+
+      document.getElementById("summaryText").textContent = comparisonMode
+        ? `Comparison of ${data.individualAnalyses.length} images from the same project.`
+        : data.summary ?? "";
+      document.getElementById("goalResponseText").textContent =
+        getGoalResponseOrFallback(
+          comparisonMode ? { ...data, ...displayData } : data,
+          data.desiredOutcome || desiredOutcomeInput.value.trim()
+        );
+
+      document.getElementById("metaBrightness").textContent = displayData.visualFeatures?.brightness ?? 0;
+      document.getElementById("metaContrast").textContent = displayData.visualFeatures?.contrast ?? 0;
+      document.getElementById("metaWarmth").textContent = displayData.visualFeatures?.warmth ?? 0;
+      document.getElementById("metaSaturation").textContent = displayData.visualFeatures?.saturation ?? 0;
+      document.getElementById("metaHue").textContent = displayData.visualFeatures?.hue ?? 0;
+      document.getElementById("metaLightness").textContent = displayData.visualFeatures?.lightness ?? 0;
+      document.getElementById("metaSharpness").textContent = displayData.visualFeatures?.sharpness ?? 0;
+      document.getElementById("metaEntropy").textContent = Math.round((displayData.visualFeatures?.entropy ?? 0) * 100);
+      document.getElementById("metaUniqueColors").textContent = displayData.visualFeatures?.uniqueColors ?? 0;
+
+      const suggestionsList = document.getElementById("suggestionsList");
+      suggestionsList.innerHTML = "";
+
+      if (Array.isArray(data.suggestions)) {
+        data.suggestions.forEach((item) => {
+          const li = document.createElement("li");
+          li.className = "suggestion-item";
+
+          const tag = document.createElement("span");
+          tag.className = `suggestion-pill ${getSuggestionCategory(item)}`;
+          tag.textContent = getSuggestionCategory(item).toUpperCase();
+
+          const text = document.createElement("span");
+          text.textContent = item;
+
+          li.appendChild(tag);
+          li.appendChild(text);
+          suggestionsList.appendChild(li);
+        });
+      }
+
+      if (comparisonMode) {
+        updateComparisonDisplay(data);
+      }
+
+      drawChart(data);
+      drawEmotionalOverlay(data);
+      drawTransformationOverlay(data);
+
+      // Save to history (only for new analyses, not when loading from history)
+      if (!data.fromHistory) {
+        saveAnalysisToHistory(data);
+      }
+    }
+
+    function computeAggregateMetrics(data) {
+      const analyses = Array.isArray(data.individualAnalyses) ? data.individualAnalyses : [data];
+      const emotions = ["calm", "joy", "inspiration", "security", "enchantment", "admiration"];
+      const features = ["brightness", "contrast", "warmth", "saturation", "hue", "lightness", "sharpness", "entropy", "uniqueColors"];
+
+      const aggregate = {};
+      emotions.forEach((name) => {
+        const sum = analyses.reduce((acc, item) => acc + (item[name] || 0), 0);
+        aggregate[name] = Math.round(sum / analyses.length);
+      });
+
+      aggregate.visualFeatures = {};
+      features.forEach((name) => {
+        const sum = analyses.reduce((acc, item) => acc + ((item.visualFeatures?.[name] ?? 0)), 0);
+        aggregate.visualFeatures[name] = Math.round(sum / analyses.length);
+      });
+
+      return aggregate;
+    }
+
+    function updateComparisonDisplay(data) {
+      const emotions = ["Calm", "Joy", "Inspiration", "Security", "Enchantment", "Admiration"];
+      const tableContainer = document.getElementById("comparisonTableContainer");
+      const detailsContainer = document.getElementById("comparisonDetailsContainer");
+
+      const headers = data.individualAnalyses.map((analysis, idx) => {
+        const label = analysis.imageName || `Image ${idx + 1}`;
+        return `<th>${escapeHtml(label)}</th>`;
+      }).join("");
+
+      const rows = emotions.map((emotion) => {
+        const key = emotion.toLowerCase();
+        const rowCells = data.individualAnalyses.map((analysis) => `<td>${analysis[key] ?? 0}%</td>`).join("");
+        return `<tr><th>${emotion}</th>${rowCells}</tr>`;
+      }).join("");
+
+      const featureKeys = [
+        { label: 'Brightness', key: 'brightness', unit: '%' },
+        { label: 'Contrast', key: 'contrast', unit: '%' },
+        { label: 'Warmth', key: 'warmth', unit: '%' },
+        { label: 'Saturation', key: 'saturation', unit: '%' },
+        { label: 'Hue', key: 'hue', unit: '%' },
+        { label: 'Lightness', key: 'lightness', unit: '%' },
+        { label: 'Sharpness', key: 'sharpness', unit: '%' },
+        { label: 'Entropy', key: 'entropy', unit: '%' },
+        { label: 'Unique Colors', key: 'uniqueColors', unit: '%' }
+      ];
+
+      const featureRows = featureKeys.map((feature) => {
+        const rowCells = data.individualAnalyses.map((analysis) => {
+          const value = analysis.visualFeatures?.[feature.key];
+          return `<td>${typeof value === 'number' ? `${Math.round(value)}${feature.unit}` : '—'}</td>`;
+        }).join("");
+        return `<tr><th>${feature.label}</th>${rowCells}</tr>`;
+      }).join("");
+
+      tableContainer.innerHTML = `
+        <div class="comparison-table-container">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Emotion</th>
+                ${headers}
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+        <div class="comparison-table-container">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Visual Feature</th>
+                ${headers}
+              </tr>
+            </thead>
+            <tbody>
+              ${featureRows}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      detailsContainer.innerHTML = data.individualAnalyses.map((analysis, idx) => {
+        const label = analysis.imageName || `Image ${idx + 1}`;
+        return `
+          <div class="comparison-detail-card">
+            <h4>${escapeHtml(label)}</h4>
+            <p><strong>Summary:</strong> ${escapeHtml(analysis.summary || "No summary available.")}</p>
+            <p><strong>Goal:</strong> ${escapeHtml(analysis.goalResponse || "No specific goal.")}</p>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getSuggestionCategory(text) {
+      const value = (text || "").toLowerCase();
+      const correctionKeywords = ["less", "reduce", "avoid", "soften", "decrease", "tame", "temper", "limit", "simplify", "reign in"];
+      const opportunityKeywords = ["more", "increase", "reinforce", "strengthen", "accentuate", "amplify", "boost", "deepen", "expand"];
+
+      if (correctionKeywords.some((keyword) => value.includes(keyword))) {
+        return "correction";
+      }
+
+      if (opportunityKeywords.some((keyword) => value.includes(keyword))) {
+        return "opportunity";
+      }
+
+      return "guidance";
+    }
+
+    function getTargetScores(desiredOutcome) {
+      const text = (desiredOutcome || "").toLowerCase();
+      const target = {
+        calm: 50,
+        joy: 50,
+        inspiration: 50,
+        security: 50,
+        enchantment: 50,
+        admiration: 50
+      };
+
+      const mapping = {
+        calm: ["more calm", "calmer", "less anxiety"],
+        joy: ["more joy", "more joyful", "joyful"],
+        inspiration: ["more inspiration", "more inspiring", "inspiring"],
+        security: ["more security", "safer", "more secure"],
+        enchantment: ["more enchantment", "more poetic", "enchanted"],
+        admiration: ["more admiration", "more impressive", "admire"]
+      };
+
+      Object.entries(mapping).forEach(([emotion, phrases]) => {
+        if (phrases.some((phrase) => text.includes(phrase))) {
+          target[emotion] = 90;
+        }
+      });
+
+      const negativeAnxiety = [
+        "less anxiety",
+        "reduce anxiety",
+        "less stress",
+        "less anxious"
+      ];
+
+      if (negativeAnxiety.some((phrase) => text.includes(phrase))) {
+        target.calm = 90;
+        target.security = Math.max(target.security, 80);
+        target.inspiration = Math.min(target.inspiration, 45);
+        target.admiration = Math.min(target.admiration, 45);
+      }
+
+      return target;
+    }
+
+    function drawChart(data) {
+      const ctx = document.getElementById("chart").getContext("2d");
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      const labels = [
+        "Calm",
+        "Joy",
+        "Inspiration",
+        "Security",
+        "Enchantment",
+        "Admiration"
+      ];
+
+      const datasets = [];
+      const palette = [
+        {bg: "rgba(59, 130, 246, 0.22)", border: "#3b82f6"},
+        {bg: "rgba(16, 185, 129, 0.22)", border: "#10b981"},
+        {bg: "rgba(234, 179, 8, 0.22)", border: "#eab308"},
+        {bg: "rgba(244, 63, 94, 0.22)", border: "#f43f5e"},
+        {bg: "rgba(129, 140, 248, 0.22)", border: "#818cf8"}
+      ];
+
+      if (Array.isArray(data.individualAnalyses) && data.individualAnalyses.length > 1) {
+        data.individualAnalyses.forEach((analysis, index) => {
+          const colors = palette[index % palette.length];
+          datasets.push({
+            label: analysis.imageName || `Image ${index + 1}`,
+            data: [
+              analysis.calm || 0,
+              analysis.joy || 0,
+              analysis.inspiration || 0,
+              analysis.security || 0,
+              analysis.enchantment || 0,
+              analysis.admiration || 0
+            ],
+            backgroundColor: colors.bg,
+            borderColor: colors.border,
+            pointBackgroundColor: colors.border,
+            pointBorderColor: "#ffffff",
+            borderWidth: 2,
+            pointRadius: 4,
+            fill: true
+          });
+        });
+      } else {
+        const currentScores = [
+          data.calm || 0,
+          data.joy || 0,
+          data.inspiration || 0,
+          data.security || 0,
+          data.enchantment || 0,
+          data.admiration || 0
+        ];
+
+        datasets.push({
+          label: "Current",
+          data: currentScores,
+          backgroundColor: "rgba(59, 130, 246, 0.22)",
+          borderColor: "#3b82f6",
+          pointBackgroundColor: "#3b82f6",
+          pointBorderColor: "#ffffff",
+          borderWidth: 2,
+          pointRadius: 4,
+          fill: true
+        });
+      }
+
+      const desiredText = (data.desiredOutcome || desiredOutcomeInput.value).trim();
+      const targetScores = getTargetScores(desiredText);
+      const hasTarget = desiredText.length > 0 && Object.values(targetScores).some((score) => score !== 50);
+
+      if (hasTarget) {
+        datasets.push({
+          label: "Target",
+          data: [
+            targetScores.calm,
+            targetScores.joy,
+            targetScores.inspiration,
+            targetScores.security,
+            targetScores.enchantment,
+            targetScores.admiration
+          ],
+          backgroundColor: "rgba(0, 0, 0, 0.08)",
+          borderColor: "rgba(0, 0, 0, 0.92)",
+          pointBackgroundColor: "rgba(0, 0, 0, 0.92)",
+          pointBorderColor: "#ffffff",
+          borderWidth: 2,
+          pointRadius: 4,
+          fill: true
+        });
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: "radar",
+        data: {
+          labels,
+          datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            r: {
+              min: 0,
+              max: 100,
+              ticks: {
+                stepSize: 20,
+                backdropColor: "transparent",
+                color: "#444"
+              },
+              angleLines: {
+                color: "rgba(0,0,0,0.10)"
+              },
+              grid: {
+                color: "rgba(0,0,0,0.10)"
+              },
+              pointLabels: {
+                color: "#222",
+                font: {
+                  size: 12
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function drawEmotionalOverlay(data) {
+      if (Array.isArray(data.individualAnalyses) && data.individualAnalyses.length > 1) {
+        document.querySelectorAll('.emotional-overlay').forEach((canvas) => {
+          const rect = canvas.getBoundingClientRect();
+          const width = Math.round(rect.width) || 120;
+          const height = Math.round(rect.height) || 120;
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, width, height);
+        });
+        return;
+      }
+
+      const overlays = document.querySelectorAll('.emotional-overlay');
+      const calmZones = data.calm || 0;
+      const securityZones = data.security || 0;
+      const inspirationZones = data.inspiration || 0;
+      const tensionZones = ((data.visualFeatures?.contrast || 0) + (100 - (data.calm || 0))) / 2;
+
+      overlays.forEach((canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        const width = Math.round(rect.width) || 120;
+        const height = Math.round(rect.height) || 120;
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, width, height);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+
+        const spots = [];
+        if (calmZones >= 30) spots.push({ x: width * 0.2, y: height * 0.3, radius: width * 0.45, color: 'rgba(96, 165, 250, 0.35)' });
+        if (securityZones >= 30) spots.push({ x: width * 0.75, y: height * 0.25, radius: width * 0.35, color: 'rgba(34, 197, 94, 0.28)' });
+        if (inspirationZones >= 40) spots.push({ x: width * 0.55, y: height * 0.7, radius: width * 0.4, color: 'rgba(249, 115, 22, 0.30)' });
+        if (tensionZones >= 50) spots.push({ x: width * 0.75, y: height * 0.75, radius: width * 0.25, color: 'rgba(239, 68, 68, 0.24)' });
+
+        if (spots.length === 0) {
+          spots.push({ x: width * 0.5, y: height * 0.5, radius: width * 0.45, color: 'rgba(96, 165, 250, 0.22)' });
+        }
+
+        ctx.filter = 'blur(18px)';
+        spots.slice(0, 5).forEach((spot) => {
+          const gradient = ctx.createRadialGradient(spot.x, spot.y, 0, spot.x, spot.y, spot.radius);
+          gradient.addColorStop(0, spot.color);
+          gradient.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, width, height);
+        });
+        ctx.filter = 'none';
+      });
+    }
+
+    function drawTransformationOverlay(data) {
+      if (Array.isArray(data.individualAnalyses) && data.individualAnalyses.length > 1) {
+        document.querySelectorAll('.transformation-overlay').forEach((canvas) => {
+          const parentRect = canvas.parentElement.getBoundingClientRect();
+          const width = Math.round(parentRect.width) || 120;
+          const height = Math.round(parentRect.height) || 120;
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, width, height);
+        });
+        return;
+      }
+
+      const overlays = document.querySelectorAll('.transformation-overlay');
+      const zones = generateTransformationZones(data);
+
+      overlays.forEach((canvas, index) => {
+        const parentRect = canvas.parentElement.getBoundingClientRect();
+        const width = Math.round(parentRect.width) || 120;
+        const height = Math.round(parentRect.height) || 120;
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, width, height);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+
+        // Convert relative positions to absolute
+        const absoluteZones = zones.map(zone => ({
+          x: zone.x * width,
+          y: zone.y * height,
+          radius: zone.radius * Math.min(width, height),
+          color: zone.color,
+          label: zone.label
+        }));
+
+        // Draw gradient zones
+        ctx.filter = 'blur(12px)';
+        absoluteZones.forEach((zone) => {
+          const gradient = ctx.createRadialGradient(zone.x, zone.y, 0, zone.x, zone.y, zone.radius);
+          gradient.addColorStop(0, zone.color);
+          gradient.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, width, height);
+        });
+        ctx.filter = 'none';
+
+        // Draw text labels
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.lineWidth = 2;
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        absoluteZones.forEach((zone) => {
+          const textWidth = ctx.measureText(zone.label).width;
+          const textHeight = 12;
+          const padding = 4;
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(zone.x - textWidth/2 - padding, zone.y - textHeight/2 - padding,
+                      textWidth + padding*2, textHeight + padding*2);
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+          ctx.lineWidth = 1;
+          ctx.strokeText(zone.label, zone.x, zone.y);
+          ctx.fillText(zone.label, zone.x, zone.y);
+        });
+      });
+    }
+
+    function generateTransformationZones(data) {
+      const zones = [];
+      const suggestions = data.suggestions || [];
+
+      // Base zones based on low emotional scores
+      if ((data.calm || 0) < 60) {
+        zones.push({
+          x: Math.random() * 0.6 + 0.2, // 0.2 to 0.8
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.25 + Math.random() * 0.15,
+          color: 'rgba(96, 165, 250, 0.3)', // blue for calm
+          label: 'soften'
+        });
+      }
+
+      if ((data.inspiration || 0) < 60) {
+        zones.push({
+          x: Math.random() * 0.6 + 0.2,
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.22 + Math.random() * 0.15,
+          color: 'rgba(249, 115, 22, 0.32)', // orange for inspiration
+          label: 'open'
+        });
+      }
+
+      if ((data.security || 0) < 60) {
+        zones.push({
+          x: Math.random() * 0.6 + 0.2,
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.18 + Math.random() * 0.15,
+          color: 'rgba(34, 197, 94, 0.26)', // green for security
+          label: 'human scale'
+        });
+      }
+
+      // Zones based on visual features
+      if ((data.visualFeatures?.contrast || 0) > 70) {
+        zones.push({
+          x: Math.random() * 0.6 + 0.2,
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.2 + Math.random() * 0.1,
+          color: 'rgba(239, 68, 68, 0.25)', // red for tension reduction
+          label: 'reduce contrast'
+        });
+      }
+
+      if ((data.visualFeatures?.saturation || 0) < 30) {
+        zones.push({
+          x: Math.random() * 0.6 + 0.2,
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.19 + Math.random() * 0.1,
+          color: 'rgba(249, 115, 22, 0.3)', // orange for inspiration
+          label: 'add color'
+        });
+      }
+
+      // Zones based on suggestions content
+      const suggestionText = suggestions.join(' ').toLowerCase();
+
+      if (suggestionText.includes('hierarchy') || suggestionText.includes('clarify')) {
+        zones.push({
+          x: Math.random() * 0.6 + 0.2,
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.21 + Math.random() * 0.1,
+          color: 'rgba(96, 165, 250, 0.28)', // blue for calm
+          label: 'clarify hierarchy'
+        });
+      }
+
+      if (suggestionText.includes('simplify') || suggestionText.includes('reduce')) {
+        zones.push({
+          x: Math.random() * 0.6 + 0.2,
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.2 + Math.random() * 0.1,
+          color: 'rgba(239, 68, 68, 0.24)', // red for tension
+          label: 'simplify'
+        });
+      }
+
+      // Ensure at least 2-3 zones for testing
+      while (zones.length < 3) {
+        const defaultLabels = ['enhance', 'balance', 'refine'];
+        const randomLabel = defaultLabels[Math.floor(Math.random() * defaultLabels.length)];
+        const colors = ['rgba(96, 165, 250, 0.4)', 'rgba(34, 197, 94, 0.4)', 'rgba(249, 115, 22, 0.4)'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        zones.push({
+          x: Math.random() * 0.6 + 0.2,
+          y: Math.random() * 0.6 + 0.2,
+          radius: 0.18 + Math.random() * 0.12,
+          color: randomColor,
+          label: randomLabel
+        });
+      }
+
+      // Convert relative positions to absolute and limit to 5 zones
+      return zones.slice(0, 5);
+    }
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
